@@ -25,7 +25,7 @@ class TaskResponse(BaseModel):
     status: str
     mode: str
     risk_level: str
-    branch_name: str = None
+    branch_name: str | None = None
     created_at: datetime
     updated_at: datetime
     
