@@ -1,4 +1,4 @@
-# Mneme Command Center - Phase 1
+# Mneme Command Center - Phase 2
 
 A single-user, local-first autonomous coding command center controlled from a phone dashboard.
 
@@ -7,8 +7,10 @@ A single-user, local-first autonomous coding command center controlled from a ph
 Mneme lets you:
 - Create coding/research tasks from your phone
 - Route them to a worker running on your laptop
-- View logs and approve plans
-- Eventually run Claude Code against your local repos (Phase 2+)
+- Watch tasks, logs, and approvals update live through SSE
+- Review plan file previews directly in approval cards
+- Recover worker progress after restart with checkpoints
+- Create tasks faster with voice input and one-click templates
 
 ## Architecture
 
@@ -16,7 +18,8 @@ Mneme lets you:
 ┌─────────────────────────────────────────────────────────────┐
 │                   Dashboard (React/Vite)                     │
 │                   - List projects & tasks                    │
-│                   - Show approvals & logs                    │
+│                   - Live approvals, logs, task updates       │
+│                   - Voice task creation + templates           │
 │                   - Control emergency stop                   │
 └─────────────────┬───────────────────────────────────────────┘
                   │
@@ -27,7 +30,7 @@ Mneme lets you:
 │ - SQLite database                                           │
 │ - Admin password auth                                       │
 │ - Projects, Tasks, Approvals, Logs                          │
-│ - Worker coordination                                       │
+│ - Worker coordination + SSE event streaming                 │
 │ - Emergency stop                                            │
 └─────────────────▲───────────────────────────────────────────┘
                   │
@@ -38,7 +41,8 @@ Mneme lets you:
 │ - Polls API for queued tasks                                │
 │ - Sends heartbeat every 30s                                 │
 │ - Creates implementation plans                              │
-│ - Requests approvals                                        │
+│ - Requests approvals with plan file previews                │
+│ - Stores/recovers checkpoints after crash                   │
 │ - Respects emergency stop                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -86,6 +90,29 @@ python main.py
 - ✅ An approval card appears
 - ✅ I can approve or reject the plan
 - ✅ Emergency stop works
+- ✅ Dashboard updates instantly without manual refresh
+- ✅ Approval cards show file-level plan previews
+- ✅ Worker resumes from checkpoints after restart
+- ✅ Voice input can fill task description on mobile browsers
+- ✅ Task templates prefill common task shapes
+
+## New in Phase 2
+
+- Real-time updates
+    - API exposes SSE stream at /events
+    - Worker and API broadcast state-change events
+    - Dashboard auto-refreshes task, log, and approval views from events
+- Approval diff previews
+    - Worker derives structured plan_details from generated plan text
+    - Approval model stores plan_details as JSON
+    - Approval cards render collapsible file preview blocks
+- Worker checkpoints
+    - Persistent checkpoint file at /tmp/mneme_worker_state.json
+    - Worker resumes from saved planning/execution steps
+    - Checkpoint is cleared on terminal execution stage completion/failure
+- Mobile task entry improvements
+    - Microphone button uses SpeechRecognition/webkitSpeechRecognition
+    - Task templates: Refactor, Add Tests, Document, Explain Code
 
 ## Full Documentation
 
