@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from ..database import get_db
-from ..models import Approval, ApprovalStatus, Task, TaskStatus
+from ..models import Approval, ApprovalStatus, ApprovalType, Task, TaskStatus
+from ..workflow import status_after_approval
 from ..utils import generate_id, verify_token
 from .auth import verify_token_header
 
@@ -69,10 +70,11 @@ def approve_approval(
     
     approval.status = ApprovalStatus.APPROVED
     
-    # Update task status if this is a plan approval
+    # Update task status based on approval type
     task = db.query(Task).filter(Task.id == approval.task_id).first()
-    if task and task.status == TaskStatus.WAITING_FOR_PLAN_APPROVAL:
-        task.status = TaskStatus.PLAN_APPROVED
+    if task:
+        next_status = status_after_approval(task.status.value, approval.type.value, approved=True)
+        task.status = TaskStatus(next_status)
     
     db.commit()
     db.refresh(approval)
@@ -103,10 +105,11 @@ def reject_approval(
     
     approval.status = ApprovalStatus.REJECTED
     
-    # Update task status if this is a plan approval
+    # Update task status based on approval type
     task = db.query(Task).filter(Task.id == approval.task_id).first()
-    if task and task.status == TaskStatus.WAITING_FOR_PLAN_APPROVAL:
-        task.status = TaskStatus.PLAN_REJECTED
+    if task:
+        next_status = status_after_approval(task.status.value, approval.type.value, approved=False)
+        task.status = TaskStatus(next_status)
     
     db.commit()
     db.refresh(approval)

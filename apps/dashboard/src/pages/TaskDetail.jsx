@@ -49,6 +49,11 @@ export default function TaskDetail() {
     queued: '#ffc107',
     planning: '#17a2b8',
     waiting_for_plan_approval: '#ff6b6b',
+    queued_for_execution: '#6f42c1',
+    approved_for_execution: '#0dcaf0',
+    waiting_for_manual_execution: '#fd7e14',
+    waiting_for_diff_review: '#d63384',
+    diff_review_approved: '#198754',
     plan_approved: '#28a745',
     plan_rejected: '#dc3545',
     executing: '#0d6efd',
@@ -58,6 +63,10 @@ export default function TaskDetail() {
 
   const latestPlanApproval = taskApprovals
     .filter(approval => approval.type === 'plan')
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+
+  const latestDiffApproval = taskApprovals
+    .filter(approval => approval.type === 'diff_review' || approval.type === 'diff')
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
 
   const findLogValue = (prefix) => {
@@ -73,6 +82,11 @@ export default function TaskDetail() {
   const scanDirectories = findLogValue('Repo scan directories:')
   const planPath = findLogValue('Implementation plan generated:')
   const profilePath = findLogValue('Repo profile generated:')
+  const claudePromptPath = findLogValue('Claude prompt generated:')
+  const diffSummaryPath = findLogValue('Diff summary generated:')
+  const changedFiles = findLogValue('Changed files:')
+
+  const testLogEntries = logs.filter(log => (log.message || '').startsWith('Test command `'))
 
   return (
     <div style={{ padding: '2rem' }}>
@@ -145,6 +159,41 @@ export default function TaskDetail() {
           </>
         ) : (
           <p>No plan approval generated yet.</p>
+        )}
+      </div>
+
+      <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
+        <h2>Execution Artifacts</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+          <div><strong>Claude Prompt Path:</strong> {claudePromptPath || 'N/A'}</div>
+          <div><strong>Diff Summary Path:</strong> {diffSummaryPath || 'N/A'}</div>
+        </div>
+        <div style={{ marginTop: '1rem' }}>
+          <p><strong>Changed Files:</strong> {changedFiles || 'N/A'}</p>
+          <p>
+            <strong>Diff Review Approval:</strong>{' '}
+            {latestDiffApproval ? `${latestDiffApproval.status} (${latestDiffApproval.risk_level})` : 'none'}
+          </p>
+        </div>
+        <div>
+          <strong>Test Results:</strong>
+          {testLogEntries.length === 0 ? (
+            <p>No test execution logs yet.</p>
+          ) : (
+            <ul>
+              {testLogEntries.map(log => (
+                <li key={log.id}>{log.message}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {latestDiffApproval && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: 'white', borderRadius: '4px' }}>
+            <strong>Latest Diff Review Summary</strong>
+            <pre style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', marginTop: '0.5rem' }}>
+              {latestDiffApproval.summary}
+            </pre>
+          </div>
         )}
       </div>
 

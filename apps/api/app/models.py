@@ -16,8 +16,13 @@ class TaskStatus(str, enum.Enum):
     QUEUED = "queued"
     PLANNING = "planning"
     WAITING_FOR_PLAN_APPROVAL = "waiting_for_plan_approval"
+    QUEUED_FOR_EXECUTION = "queued_for_execution"
+    APPROVED_FOR_EXECUTION = "approved_for_execution"
     PLAN_APPROVED = "plan_approved"
     PLAN_REJECTED = "plan_rejected"
+    WAITING_FOR_MANUAL_EXECUTION = "waiting_for_manual_execution"
+    WAITING_FOR_DIFF_REVIEW = "waiting_for_diff_review"
+    DIFF_REVIEW_APPROVED = "diff_review_approved"
     EXECUTING = "executing"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -37,6 +42,7 @@ class RiskLevel(str, enum.Enum):
 class ApprovalType(str, enum.Enum):
     PLAN = "plan"
     DIFF = "diff"
+    DIFF_REVIEW = "diff_review"
 
 
 class ApprovalStatus(str, enum.Enum):

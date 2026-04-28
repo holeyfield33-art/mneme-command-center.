@@ -2,8 +2,14 @@ from pathlib import Path
 
 from worker.repo_planning import (
     build_repo_profile,
+    choose_branch_name,
+    classify_changed_file_risk,
     collect_git_summary,
+    generate_claude_prompt_markdown,
+    generate_diff_summary_markdown,
     generate_plan_markdown,
+    is_safe_test_command,
+    normalize_changed_files,
     scan_repo,
     slugify_project_name,
     validate_repo_path,
@@ -119,3 +125,59 @@ def test_profile_and_plan_generation(tmp_path: Path) -> None:
     assert "# Implementation Plan" in plan
     assert "Add endpoint validation" in plan
     assert "Likely Tests To Run" in plan
+
+
+def test_choose_branch_name_uses_suffix_on_collision() -> None:
+    branch = choose_branch_name(
+        task_objective="Add Login Form",
+        task_id="abcd1234efgh5678",
+        existing_branches=["mneme/add-login-form"],
+    )
+    assert branch == "mneme/add-login-form-abcd1234"
+
+
+def test_prompt_generation_includes_safety_constraints() -> None:
+    task = {"id": "task-1", "project_id": "proj-1", "objective": "Implement feature"}
+    profile = {
+        "repo_path": "/tmp/repo",
+        "detected_stack": ["python"],
+        "git": {"branch": "main", "is_dirty": False},
+    }
+    prompt = generate_claude_prompt_markdown(
+        task=task,
+        profile=profile,
+        approved_plan_text="approved plan text",
+        approved_plan_path="plans/task-1.md",
+        likely_files=["src/main.py"],
+        test_commands=["pytest"],
+    )
+    assert "Do not commit." in prompt
+    assert "Do not push." in prompt
+    assert "approved plan text" in prompt
+
+
+def test_diff_summary_and_risk_classification() -> None:
+    changed = normalize_changed_files("src/app.py\n.github/workflows/ci.yml\n")
+    risk, notes = classify_changed_file_risk(changed)
+    assert risk == "high"
+    assert any("High-risk" in note for note in notes)
+
+    summary = generate_diff_summary_markdown(
+        task_id="task-1",
+        branch_name="mneme/task",
+        status_short=" M src/app.py",
+        diff_stat=" src/app.py | 2 +-",
+        changed_files=changed,
+        diff_check="",
+        test_results=[{"command": "pytest", "success": True}],
+        risk_level=risk,
+        risk_notes=notes,
+    )
+    assert "Diff Summary" in summary
+    assert ".github/workflows/ci.yml" in summary
+
+
+def test_safe_test_command_filter() -> None:
+    assert is_safe_test_command("pytest") is True
+    assert is_safe_test_command("npm test") is True
+    assert is_safe_test_command("python script.py") is False
