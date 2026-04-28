@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { tasks } from '../api'
+import { approvals, tasks } from '../api'
 
 export default function TaskDetail() {
   const { taskId } = useParams()
   const navigate = useNavigate()
   const [task, setTask] = useState(null)
   const [logs, setLogs] = useState([])
+  const [taskApprovals, setTaskApprovals] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -25,6 +26,9 @@ export default function TaskDetail() {
       ])
       setTask(taskRes.data)
       setLogs(logsRes.data)
+
+      const approvalsRes = await approvals.list(undefined, taskId)
+      setTaskApprovals(approvalsRes.data)
     } catch (err) {
       setError('Failed to load task')
       console.error(err)
@@ -51,6 +55,24 @@ export default function TaskDetail() {
     completed: '#198754',
     failed: '#dc3545'
   }
+
+  const latestPlanApproval = taskApprovals
+    .filter(approval => approval.type === 'plan')
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+
+  const findLogValue = (prefix) => {
+    const entry = [...logs].reverse().find(log => (log.message || '').startsWith(prefix))
+    if (!entry) return null
+    return entry.message.slice(prefix.length).trim()
+  }
+
+  const gitBranch = findLogValue('Git branch:')
+  const gitDirty = findLogValue('Working tree dirty:')
+  const gitRemotes = findLogValue('Git remotes:')
+  const scanFiles = findLogValue('Repo scan files:')
+  const scanDirectories = findLogValue('Repo scan directories:')
+  const planPath = findLogValue('Implementation plan generated:')
+  const profilePath = findLogValue('Repo profile generated:')
 
   return (
     <div style={{ padding: '2rem' }}>
@@ -93,6 +115,37 @@ export default function TaskDetail() {
           <div><strong>Risk Level:</strong> {task.risk_level}</div>
           <div><strong>Created:</strong> {new Date(task.created_at).toLocaleString()}</div>
         </div>
+      </div>
+
+      <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
+        <h2>Repo Planning Summary</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+          <div><strong>Git Branch:</strong> {gitBranch || 'N/A'}</div>
+          <div><strong>Working Tree Dirty:</strong> {gitDirty || 'N/A'}</div>
+          <div><strong>Plan Path:</strong> {planPath || 'N/A'}</div>
+          <div><strong>Profile Path:</strong> {profilePath || 'N/A'}</div>
+        </div>
+        <div style={{ marginTop: '1rem' }}>
+          <p><strong>Remotes:</strong> {gitRemotes || 'N/A'}</p>
+          <p><strong>Scan Files:</strong> {scanFiles || 'N/A'}</p>
+          <p><strong>Scan Directories:</strong> {scanDirectories || 'N/A'}</p>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
+        <h2>Generated Plan</h2>
+        {latestPlanApproval ? (
+          <>
+            <p>
+              <strong>Approval Risk Level:</strong> {latestPlanApproval.risk_level}
+            </p>
+            <pre style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', marginTop: '0.75rem' }}>
+              {latestPlanApproval.summary}
+            </pre>
+          </>
+        ) : (
+          <p>No plan approval generated yet.</p>
+        )}
       </div>
 
       <div style={{ padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>

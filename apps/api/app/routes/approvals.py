@@ -17,6 +17,7 @@ class ApprovalResponse(BaseModel):
     type: str
     title: str
     summary: str
+    risk_level: str
     status: str
     created_at: datetime
     

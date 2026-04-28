@@ -88,6 +88,9 @@ export default function Approvals() {
                 }}
               >
                 <h3>{approval.title}</h3>
+                <p style={{ margin: '0.5rem 0', color: '#555', fontSize: '0.9rem' }}>
+                  <strong>Risk:</strong> {approval.risk_level || 'medium'}
+                </p>
                 {task && (
                   <p style={{ margin: '0.5rem 0', color: '#777', fontSize: '0.9rem' }}>
                     <strong>Task:</strong> {task.objective}

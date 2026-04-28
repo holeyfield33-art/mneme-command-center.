@@ -100,6 +100,7 @@ class Approval(Base):
     type = Column(Enum(ApprovalType), default=ApprovalType.PLAN)
     title = Column(String)
     summary = Column(Text)
+    risk_level = Column(Enum(RiskLevel), default=RiskLevel.MEDIUM)
     status = Column(Enum(ApprovalStatus), default=ApprovalStatus.PENDING, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     
