@@ -5,10 +5,11 @@
 2. [Backend Setup](#backend-setup)
 3. [Dashboard Setup](#dashboard-setup)
 4. [Worker Setup](#worker-setup)
-5. [Usage Guide](#usage-guide)
-6. [API Reference](#api-reference)
-7. [Database Schema](#database-schema)
-8. [Troubleshooting](#troubleshooting)
+5. [Running Tests](#running-tests)
+6. [Usage Guide](#usage-guide)
+7. [API Reference](#api-reference)
+8. [Database Schema](#database-schema)
+9. [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 
@@ -162,6 +163,26 @@ Output:
 ------------------------------------------------------------
 [2024-01-15T10:30:45.123456] Heartbeat sent
 [INFO] Found 0 queued tasks
+```
+
+## Running Tests
+
+```bash
+/home/codespace/.python/current/bin/python -m pytest -v
+```
+
+Default test runs include local non-live tests only.
+
+To run live API integration tests against a running backend:
+
+```bash
+MNEME_RUN_LIVE_TESTS=1 /home/codespace/.python/current/bin/python -m pytest -v
+```
+
+To include worker-dependent live checks as well:
+
+```bash
+MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /home/codespace/.python/current/bin/python -m pytest -v
 ```
 
 ## Usage Guide

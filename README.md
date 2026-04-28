@@ -90,3 +90,13 @@ python main.py
 ## Full Documentation
 
 See detailed setup, API reference, database schema, and troubleshooting in [docs/SETUP.md](docs/SETUP.md)
+
+## Testing
+
+Run tests with:
+
+```bash
+/home/codespace/.python/current/bin/python -m pytest -v
+```
+
+By default, only local non-live tests run. To run live integration tests against a running API, set `MNEME_RUN_LIVE_TESTS=1`.
