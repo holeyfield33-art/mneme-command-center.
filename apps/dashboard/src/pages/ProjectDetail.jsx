@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { projects, tasks } from '../api'
+import TaskForm from '../components/TaskForm'
 
 export default function ProjectDetail() {
   const { projectId } = useParams()
@@ -9,12 +10,8 @@ export default function ProjectDetail() {
   const [taskList, setTaskList] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [isCreatingTask, setIsCreatingTask] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
-  const [taskFormData, setTaskFormData] = useState({
-    objective: '',
-    mode: 'interactive',
-    risk_level: 'medium'
-  })
 
   const loadProject = useCallback(async () => {
     try {
@@ -50,23 +47,19 @@ export default function ProjectDetail() {
     return () => window.removeEventListener('mneme:sse', onSSE)
   }, [loadProject, projectId])
 
-  const handleTaskInputChange = (e) => {
-    const { name, value } = e.target
-    setTaskFormData(prev => ({ ...prev, [name]: value }))
-  }
-
-  const handleCreateTask = async (e) => {
-    e.preventDefault()
+  const handleCreateTask = async (taskPayload) => {
     try {
+      setIsCreatingTask(true)
       await tasks.create({
         project_id: projectId,
-        ...taskFormData
+        ...taskPayload
       })
-      setTaskFormData({ objective: '', mode: 'interactive', risk_level: 'medium' })
       setShowTaskForm(false)
       loadProject()
     } catch (err) {
       setError('Failed to create task')
+    } finally {
+      setIsCreatingTask(false)
     }
   }
 
@@ -125,80 +118,11 @@ export default function ProjectDetail() {
       </div>
 
       {showTaskForm && (
-        <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
-          <form onSubmit={handleCreateTask}>
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.25rem' }}>Objective *</label>
-              <textarea
-                name="objective"
-                value={taskFormData.objective}
-                onChange={handleTaskInputChange}
-                required
-                rows="4"
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  boxSizing: 'border-box',
-                  fontFamily: 'monospace'
-                }}
-              />
-            </div>
-            <div style={{ marginBottom: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.25rem' }}>Mode</label>
-                <select
-                  name="mode"
-                  value={taskFormData.mode}
-                  onChange={handleTaskInputChange}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="interactive">Interactive</option>
-                  <option value="autonomous">Autonomous</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.25rem' }}>Risk Level</label>
-                <select
-                  name="risk_level"
-                  value={taskFormData.risk_level}
-                  onChange={handleTaskInputChange}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
-              </div>
-            </div>
-            <button
-              type="submit"
-              style={{
-                padding: '0.75rem 1.5rem',
-                backgroundColor: '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Create Task
-            </button>
-          </form>
-        </div>
+        <TaskForm
+          onSubmit={handleCreateTask}
+          onCancel={() => setShowTaskForm(false)}
+          isSubmitting={isCreatingTask}
+        />
       )}
 
       <div style={{ display: 'grid', gap: '1rem' }}>
