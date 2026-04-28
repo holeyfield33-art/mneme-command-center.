@@ -63,7 +63,8 @@ export const worker = {
 export const system = {
   emergencyStop: () => apiClient.post('/system/emergency-stop'),
   clearEmergencyStop: () => apiClient.post('/system/emergency-stop/clear'),
-  getEmergencyStopStatus: () => apiClient.get('/system/emergency-stop/status')
+  getEmergencyStopStatus: () => apiClient.get('/system/emergency-stop/status'),
+  getRuntimeStatus: () => apiClient.get('/system/runtime-status')
 }
 
 export default apiClient

@@ -10,6 +10,7 @@ export default function Home() {
   const [emergencyStopActive, setEmergencyStopActive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [runtimeStatus, setRuntimeStatus] = useState(null)
 
   useEffect(() => {
     loadDashboard()
@@ -20,17 +21,19 @@ export default function Home() {
   const loadDashboard = async () => {
     try {
       setError('')
-      const [workersRes, tasksRes, approvalsRes, stopStatusRes] = await Promise.all([
+      const [workersRes, tasksRes, approvalsRes, stopStatusRes, runtimeRes] = await Promise.all([
         worker.getStatus(),
         tasks.list(),
         approvals.list('pending'),
-        system.getEmergencyStopStatus()
+        system.getEmergencyStopStatus(),
+        system.getRuntimeStatus()
       ])
       
       setWorkers(workersRes.data)
       setActiveTasks(tasksRes.data.filter(t => ['queued', 'planning', 'executing'].includes(t.status)))
       setPendingApprovals(approvalsRes.data)
       setEmergencyStopActive(stopStatusRes.data.active)
+      setRuntimeStatus(runtimeRes.data)
     } catch (err) {
       setError('Failed to load dashboard')
       console.error(err)
@@ -116,6 +119,21 @@ export default function Home() {
                 <strong>{w.hostname}</strong> - <span style={{ color: w.status === 'online' ? 'green' : 'red' }}>● {w.status}</span>
               </li>
             ))}
+          </ul>
+        )}
+      </div>
+
+      <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
+        <h2>Runtime Settings</h2>
+        {!runtimeStatus ? (
+          <p>Runtime settings unavailable</p>
+        ) : (
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            <li><strong>Claude Execution Required:</strong> {runtimeStatus.claude_execution_required ? 'yes' : 'no'}</li>
+            <li><strong>Claude Configured:</strong> {runtimeStatus.claude_configured ? 'yes' : 'no'}</li>
+            <li><strong>Claude Command Configured:</strong> {runtimeStatus.claude_command_configured ? 'yes' : 'no'}</li>
+            <li><strong>Notifications Enabled:</strong> {runtimeStatus.notifications_enabled ? 'yes' : 'no'}</li>
+            <li><strong>Telegram Configured:</strong> {runtimeStatus.telegram_configured ? 'yes' : 'no'}</li>
           </ul>
         )}
       </div>

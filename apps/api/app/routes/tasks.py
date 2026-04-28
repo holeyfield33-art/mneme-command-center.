@@ -6,9 +6,11 @@ from datetime import datetime
 from ..database import get_db
 from ..models import Task, TaskStatus, TaskMode, RiskLevel, Log, LogLevel, Approval, ApprovalStatus, ApprovalType, Project
 from ..utils import generate_id, verify_token
+from ..notifier import ApiNotifier
 from .auth import verify_token_header
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+notifier = ApiNotifier()
 
 
 class TaskCreate(BaseModel):
@@ -99,6 +101,15 @@ def create_task(
     db.add(task)
     db.commit()
     db.refresh(task)
+
+    task_link = notifier.task_link(task.id)
+    notifier.send(
+        (
+            f"Mneme task created: {project.name}\n"
+            f"Objective: {task.objective[:120]}\n"
+            f"Open: {task_link}"
+        ).strip()
+    )
     return task
 
 

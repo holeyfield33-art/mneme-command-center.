@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { approvals, tasks } from '../api'
+import { approvals, tasks, system } from '../api'
 
 export default function TaskDetail() {
   const { taskId } = useParams()
@@ -10,6 +10,7 @@ export default function TaskDetail() {
   const [taskApprovals, setTaskApprovals] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [runtimeStatus, setRuntimeStatus] = useState(null)
 
   useEffect(() => {
     loadTask()
@@ -20,12 +21,14 @@ export default function TaskDetail() {
   const loadTask = async () => {
     try {
       setError('')
-      const [taskRes, logsRes] = await Promise.all([
+      const [taskRes, logsRes, runtimeRes] = await Promise.all([
         tasks.get(taskId),
-        tasks.getLogs(taskId)
+        tasks.getLogs(taskId),
+        system.getRuntimeStatus()
       ])
       setTask(taskRes.data)
       setLogs(logsRes.data)
+      setRuntimeStatus(runtimeRes.data)
 
       const approvalsRes = await approvals.list(undefined, taskId)
       setTaskApprovals(approvalsRes.data)
@@ -87,6 +90,8 @@ export default function TaskDetail() {
   const changedFiles = findLogValue('Changed files:')
 
   const testLogEntries = logs.filter(log => (log.message || '').startsWith('Test command `'))
+  const notificationLogEntries = logs.filter(log => (log.message || '').startsWith('Notification '))
+  const latestNotification = notificationLogEntries.length > 0 ? notificationLogEntries[notificationLogEntries.length - 1] : null
 
   return (
     <div style={{ padding: '2rem' }}>
@@ -167,6 +172,8 @@ export default function TaskDetail() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
           <div><strong>Claude Prompt Path:</strong> {claudePromptPath || 'N/A'}</div>
           <div><strong>Diff Summary Path:</strong> {diffSummaryPath || 'N/A'}</div>
+          <div><strong>Claude Execution Required:</strong> {runtimeStatus?.claude_execution_required ? 'yes' : 'no'}</div>
+          <div><strong>Claude Command Configured:</strong> {runtimeStatus?.claude_command_configured ? 'yes' : 'no'}</div>
         </div>
         <div style={{ marginTop: '1rem' }}>
           <p><strong>Changed Files:</strong> {changedFiles || 'N/A'}</p>
@@ -174,6 +181,7 @@ export default function TaskDetail() {
             <strong>Diff Review Approval:</strong>{' '}
             {latestDiffApproval ? `${latestDiffApproval.status} (${latestDiffApproval.risk_level})` : 'none'}
           </p>
+          <p><strong>Latest Notification Status:</strong> {latestNotification ? latestNotification.message : 'N/A'}</p>
         </div>
         <div>
           <strong>Test Results:</strong>

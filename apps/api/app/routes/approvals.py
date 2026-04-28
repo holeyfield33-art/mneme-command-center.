@@ -4,12 +4,14 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from ..database import get_db
-from ..models import Approval, ApprovalStatus, ApprovalType, Task, TaskStatus
+from ..models import Approval, ApprovalStatus, ApprovalType, Task, TaskStatus, Project
 from ..workflow import status_after_approval
 from ..utils import generate_id, verify_token
+from ..notifier import ApiNotifier
 from .auth import verify_token_header
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
+notifier = ApiNotifier()
 
 
 class ApprovalResponse(BaseModel):
@@ -75,6 +77,29 @@ def approve_approval(
     if task:
         next_status = status_after_approval(task.status.value, approval.type.value, approved=True)
         task.status = TaskStatus(next_status)
+
+        project_name = "project"
+        project = db.query(Project).filter(Project.id == task.project_id).first()
+        if project:
+            project_name = project.name
+
+        task_link = notifier.task_link(task.id)
+        if approval.type == ApprovalType.PLAN:
+            notifier.send(
+                (
+                    f"Mneme plan approved: {project_name}\n"
+                    f"Execution can proceed.\n"
+                    f"Open: {task_link}"
+                ).strip()
+            )
+        elif approval.type in {ApprovalType.DIFF, ApprovalType.DIFF_REVIEW}:
+            notifier.send(
+                (
+                    f"Mneme task completed stage: {project_name}\n"
+                    f"Diff review approved.\n"
+                    f"Open: {task_link}"
+                ).strip()
+            )
     
     db.commit()
     db.refresh(approval)

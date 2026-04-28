@@ -9,6 +9,7 @@ import sys
 import time
 import uuid
 import json
+import re
 import requests
 import socket
 import shlex
@@ -34,6 +35,7 @@ from worker.repo_planning import (
     slugify_project_name,
     validate_repo_path,
 )
+from worker.notifier import WorkerNotifier
 
 
 class MnemeWorker:
@@ -44,8 +46,38 @@ class MnemeWorker:
         self.last_heartbeat = None
         self.running = True
         self.workspace_root = Path(__file__).resolve().parents[1]
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
         self.claude_code_command = os.getenv("CLAUDE_CODE_COMMAND", "").strip()
-        self.command_timeout_seconds = int(os.getenv("MNEME_COMMAND_TIMEOUT", "900"))
+        self.command_timeout_seconds = int(
+            os.getenv("CLAUDE_CODE_TIMEOUT_SECONDS", os.getenv("MNEME_COMMAND_TIMEOUT", "900"))
+        )
+        self.allow_mock_claude_for_tests = os.getenv("ALLOW_MOCK_CLAUDE_FOR_TESTS", "false").strip().lower() == "true"
+        self.enable_mock_claude_execution = os.getenv("ENABLE_MOCK_CLAUDE_EXECUTION", "false").strip().lower() == "true"
+        self.notifier = WorkerNotifier()
+        self._online_notified = False
+
+    def _sanitize_notification_text(self, text: str) -> str:
+        sanitized = text
+        for secret in [self.anthropic_api_key, os.getenv("TELEGRAM_BOT_TOKEN", "").strip()]:
+            if secret:
+                sanitized = sanitized.replace(secret, "[REDACTED]")
+        sanitized = re.sub(r"(?i)anthropic[_-]?api[_-]?key\s*[:=]\s*\S+", "ANTHROPIC_API_KEY=[REDACTED]", sanitized)
+        return sanitized
+
+    def _notify(self, message: str, task_id: str | None = None, level: str = "info") -> None:
+        safe_message = self._sanitize_notification_text(message)
+        sent, status_message = self.notifier.send(safe_message)
+        if task_id:
+            prefix = "Notification sent" if sent else "Notification status"
+            self.add_task_log(task_id, level if sent else "warning", f"{prefix}: {status_message}")
+
+    def _is_test_mode(self) -> bool:
+        return bool(os.getenv("PYTEST_CURRENT_TEST"))
+
+    def _mock_claude_enabled(self) -> bool:
+        explicit_enable = self.enable_mock_claude_execution
+        allowed_context = self._is_test_mode() or self.allow_mock_claude_for_tests
+        return explicit_enable and allowed_context
         
     def heartbeat(self) -> bool:
         """Send heartbeat to API."""
@@ -312,18 +344,26 @@ class MnemeWorker:
         return (fallback_summary or "No approved plan text available."), path
 
     def _run_claude_code(self, task_id: str, repo_path: Path, prompt_path: Path) -> tuple[bool, str]:
-        if not self.claude_code_command:
-            self.add_task_log(
-                task_id,
-                "warning",
-                "CLAUDE_CODE_COMMAND is not configured. Task moved to waiting_for_manual_execution.",
+        if not self.anthropic_api_key or not self.claude_code_command:
+            if self._mock_claude_enabled():
+                self.add_task_log(task_id, "warning", "Claude execution mocked in explicit test mode.")
+                self.add_task_log(task_id, "info", "Claude command completed successfully (mocked)")
+                return True, "mocked"
+
+            message = "Claude execution is required but ANTHROPIC_API_KEY or CLAUDE_CODE_COMMAND is not configured."
+            self.add_task_log(task_id, "error", message)
+            self._notify(
+                f"Mneme task failed: Claude execution is required but not configured.\nOpen: {self.notifier.task_link(task_id)}".strip(),
+                task_id=task_id,
+                level="error",
             )
-            self.update_task_status(task_id, "waiting_for_manual_execution")
-            return False, "disabled"
+            self.mark_task_failed(task_id)
+            return False, "failed"
 
         command_parts = shlex.split(self.claude_code_command)
         command = [*command_parts, str(prompt_path)]
         self.add_task_log(task_id, "info", f"Running Claude Code command: {' '.join(command)}")
+        self._notify(f"Mneme started Claude execution.\nOpen: {self.notifier.task_link(task_id)}".strip(), task_id=task_id)
 
         ok, stdout, stderr, code = self._run_subprocess(command, repo_path)
         if stdout.strip():
@@ -333,10 +373,15 @@ class MnemeWorker:
 
         if not ok:
             self.add_task_log(task_id, "error", f"Claude command failed with exit code {code}")
+            self._notify(
+                f"Mneme task failed during Claude execution.\nReason: exit code {code}\nOpen: {self.notifier.task_link(task_id)}".strip(),
+                task_id=task_id,
+                level="error",
+            )
             self.mark_task_failed(task_id)
             return False, "failed"
 
-        self.add_task_log(task_id, "info", "Claude command completed successfully")
+        self.add_task_log(task_id, "info", f"Claude command completed successfully (exit code {code})")
         return True, "ok"
 
     def _run_safe_tests(self, task_id: str, repo_path: Path, profile: dict[str, Any]) -> list[dict[str, Any]]:
@@ -356,6 +401,12 @@ class MnemeWorker:
                 self.add_task_log(task_id, "info", f"Test stdout: {stdout.strip()[:1500]}")
             if stderr.strip():
                 self.add_task_log(task_id, "warning", f"Test stderr: {stderr.strip()[:1500]}")
+            if not ok:
+                self._notify(
+                    f"Mneme tests failed for task {task_id}.\nCommand: {command}\nOpen: {self.notifier.task_link(task_id)}".strip(),
+                    task_id=task_id,
+                    level="warning",
+                )
 
         if not executed_any:
             self.add_task_log(task_id, "warning", "No safe test command found in repo profile")
@@ -399,6 +450,10 @@ class MnemeWorker:
 
         # Add planning log
         self.add_task_log(task_id, "info", "Worker started planning")
+        self._notify(
+            f"Mneme picked up task for planning.\nOpen: {self.notifier.task_link(task_id)}".strip(),
+            task_id=task_id,
+        )
 
         project_name = task.get("project_name") or f"project-{task.get('project_id', 'unknown')}"
         repo_path = task.get("repo_path")
@@ -442,6 +497,10 @@ class MnemeWorker:
         plan_path = self._plan_path(task_id)
         save_markdown(plan_path, plan)
         self.add_task_log(task_id, "info", f"Implementation plan generated: {plan_path}")
+        self._notify(
+            f"Mneme plan is ready.\nRisk: {estimate_risk_level(scan_result, profile.get('risk_notes', []))}.\nReview: {self.notifier.task_link(task_id)}".strip(),
+            task_id=task_id,
+        )
 
         computed_risk_level = estimate_risk_level(scan_result, profile.get("risk_notes", []))
         summary = (
@@ -467,6 +526,10 @@ class MnemeWorker:
             return False
 
         self.add_task_log(task_id, "info", "Waiting for plan approval")
+        self._notify(
+            f"Mneme needs plan approval.\nReview: {self.notifier.task_link(task_id)}".strip(),
+            task_id=task_id,
+        )
         print(f"[INFO] Task {task_id} is now waiting for approval")
         return True
 
@@ -521,8 +584,7 @@ class MnemeWorker:
 
         claude_ok, claude_state = self._run_claude_code(task_id, repo_path, prompt_path)
         if not claude_ok:
-            # Disabled path is a clean pause; failed path has already marked task failed.
-            return claude_state == "disabled"
+            return False
 
         test_results = self._run_safe_tests(task_id, repo_path, profile)
 
@@ -534,8 +596,18 @@ class MnemeWorker:
         )
         self.add_task_log(task_id, "info", f"Diff summary generated: {diff_path}")
         self.add_task_log(task_id, "info", f"Changed files: {', '.join(changed_files) if changed_files else 'none'}")
-
         tests_passed = all(result.get("success", False) for result in test_results) if test_results else False
+        tests_state = "pass" if tests_passed else "fail" if test_results else "not run"
+        self._notify(
+            (
+                f"Mneme generated changes.\n"
+                f"Changed files: {len(changed_files)}\n"
+                f"Tests: {tests_state}\n"
+                f"Review: {self.notifier.task_link(task_id)}"
+            ).strip(),
+            task_id=task_id,
+        )
+
         approval_summary = (
             f"Diff review for branch `{branch_name}`.\n"
             f"Diff summary path: {diff_path}\n"
@@ -558,6 +630,10 @@ class MnemeWorker:
             return False
 
         self.add_task_log(task_id, "info", "Waiting for diff review approval")
+        self._notify(
+            f"Mneme needs diff review approval.\nReview: {self.notifier.task_link(task_id)}".strip(),
+            task_id=task_id,
+        )
         return True
 
     def run(self, heartbeat_interval: int = 30):
@@ -568,6 +644,10 @@ class MnemeWorker:
         print(f"[INFO] API URL: {self.api_url}")
         print(f"[INFO] Heartbeat interval: {heartbeat_interval}s")
         print("-" * 60)
+
+        if not self._online_notified:
+            self._notify("Mneme worker is online.")
+            self._online_notified = True
 
         last_heartbeat_time = time.time()
 
