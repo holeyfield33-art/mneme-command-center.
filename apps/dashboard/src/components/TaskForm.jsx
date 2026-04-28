@@ -1,5 +1,32 @@
 import React, { useMemo, useState } from 'react'
 
+const DEFAULT_TEMPLATES = [
+  {
+    id: 'refactor',
+    label: 'Refactor',
+    title: 'Refactor target module',
+    description: 'Refactor the selected code path for readability, maintainability, and lower complexity while preserving behavior.',
+  },
+  {
+    id: 'add-tests',
+    label: 'Add Tests',
+    title: 'Add tests for recent changes',
+    description: 'Create or extend automated tests that cover the intended behavior and edge cases for the updated code.',
+  },
+  {
+    id: 'document',
+    label: 'Document',
+    title: 'Document feature behavior',
+    description: 'Write concise technical documentation that explains usage, configuration, and known limitations.',
+  },
+  {
+    id: 'explain-code',
+    label: 'Explain Code',
+    title: 'Explain implementation details',
+    description: 'Analyze the relevant code and provide a clear explanation of architecture, data flow, and tradeoffs.',
+  },
+]
+
 export default function TaskForm({ onSubmit, onCancel, isSubmitting }) {
   const [formData, setFormData] = useState({
     title: '',
@@ -7,6 +34,7 @@ export default function TaskForm({ onSubmit, onCancel, isSubmitting }) {
     mode: 'interactive',
     risk_level: 'medium',
   })
+  const [templateId, setTemplateId] = useState('')
   const [isListening, setIsListening] = useState(false)
 
   const SpeechRecognition = useMemo(() => {
@@ -15,6 +43,20 @@ export default function TaskForm({ onSubmit, onCancel, isSubmitting }) {
 
   const setField = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const applyTemplate = (nextTemplateId) => {
+    setTemplateId(nextTemplateId)
+    const selected = DEFAULT_TEMPLATES.find((template) => template.id === nextTemplateId)
+    if (!selected) {
+      return
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      title: selected.title,
+      description: selected.description,
+    }))
   }
 
   const startVoiceInput = () => {
@@ -57,6 +99,26 @@ export default function TaskForm({ onSubmit, onCancel, isSubmitting }) {
   return (
     <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
       <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Template</label>
+          <select
+            value={templateId}
+            onChange={(event) => applyTemplate(event.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              boxSizing: 'border-box'
+            }}
+          >
+            <option value="">Custom task</option>
+            {DEFAULT_TEMPLATES.map((template) => (
+              <option key={template.id} value={template.id}>{template.label}</option>
+            ))}
+          </select>
+        </div>
+
         <div style={{ marginBottom: '1rem' }}>
           <label style={{ display: 'block', marginBottom: '0.25rem' }}>Title *</label>
           <input
