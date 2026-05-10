@@ -44,6 +44,7 @@ export const tasks = {
   getLogs: (id) => apiClient.get(`/tasks/${id}/logs`),
   rerunClaude: (id) => apiClient.post(`/tasks/${id}/rerun-claude`),
   getArtifact: (id, artifactType) => apiClient.get(`/tasks/${id}/artifacts/${artifactType}`),
+  getGithubPrStatus: (id) => apiClient.get(`/tasks/${id}/github-pr-status`),
   addLog: (id, level, message) => apiClient.post(`/tasks/${id}/logs`, { level, message }),
   updateStatus: (id, status) => apiClient.put(`/tasks/${id}/status`, null, { params: { new_status: status } })
 }

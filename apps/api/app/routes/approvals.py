@@ -126,7 +126,8 @@ def approve_approval(
             # Auto-create GitHub PR if token and repo_url are available
             if project and project.repo_url and task.branch_name:
                 from ..config import settings
-                from worker.github_client import create_pull_request
+                from worker.github_client import create_pull_request, push_branch
+                from pathlib import Path
 
                 token = settings.github_token
                 if token:
@@ -136,6 +137,13 @@ def approve_approval(
                         LogLevel.INFO,
                         f"GitHub PR attempt: repo={project.repo_url}, base={project.default_branch or 'main'}, branch={task.branch_name}",
                     )
+
+                    push_ok, push_result = push_branch(Path(project.repo_path), task.branch_name)
+                    if push_ok:
+                        _add_task_log(db, task.id, LogLevel.INFO, f"GitHub branch push: success ({task.branch_name})")
+                    else:
+                        _add_task_log(db, task.id, LogLevel.WARNING, f"GitHub branch push: failed ({push_result})")
+
                     pr_ok, pr_result = create_pull_request(
                         repo_url=project.repo_url,
                         token=token,

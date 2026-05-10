@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from pathlib import Path
 import json
+import re
 
 from ..database import get_db
 from ..models import Task, TaskStatus, TaskMode, RiskLevel, Log, LogLevel, Approval, ApprovalStatus, ApprovalType, Project
@@ -365,4 +366,61 @@ def get_task_artifact(
         "content": content,
         "json": parsed_json,
         "size_bytes": path.stat().st_size,
+    }
+
+
+@router.get("/{task_id}/github-pr-status")
+def get_task_github_pr_status(
+    task_id: str,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    """Return live GitHub PR status using the latest PR URL logged for this task."""
+    verify_token_header(authorization)
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found"
+        )
+
+    if not settings.github_token.strip():
+        return {
+            "configured": False,
+            "status": "missing_github_token",
+            "pr_url": None,
+        }
+
+    logs = db.query(Log).filter(Log.task_id == task_id).order_by(Log.created_at.desc()).all()
+    pr_url = None
+    for log in logs:
+        message = log.message or ""
+        if message.startswith("GitHub PR URL:"):
+            pr_url = message.split("GitHub PR URL:", 1)[1].strip()
+            break
+
+    if not pr_url:
+        return {
+            "configured": True,
+            "status": "no_pr_url_logged",
+            "pr_url": None,
+        }
+
+    from worker.github_client import get_pull_request_status
+
+    ok, payload = get_pull_request_status(pr_url, settings.github_token.strip())
+    if not ok:
+        return {
+            "configured": True,
+            "status": "error",
+            "pr_url": pr_url,
+            "error": str(payload),
+        }
+
+    return {
+        "configured": True,
+        "status": "ok",
+        "pr_url": pr_url,
+        "pr": payload,
     }

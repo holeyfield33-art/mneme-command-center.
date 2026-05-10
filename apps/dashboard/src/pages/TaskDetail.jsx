@@ -17,6 +17,8 @@ export default function TaskDetail() {
   const [artifactError, setArtifactError] = useState('')
   const [loadingArtifact, setLoadingArtifact] = useState(false)
   const [rerunLoading, setRerunLoading] = useState(false)
+  const [prStatusLoading, setPrStatusLoading] = useState(false)
+  const [prStatus, setPrStatus] = useState(null)
 
   const loadTask = useCallback(async () => {
     try {
@@ -32,6 +34,16 @@ export default function TaskDetail() {
 
       const approvalsRes = await approvals.list(undefined, taskId)
       setTaskApprovals(approvalsRes.data)
+
+      setPrStatusLoading(true)
+      try {
+        const prStatusRes = await tasks.getGithubPrStatus(taskId)
+        setPrStatus(prStatusRes.data)
+      } catch (_err) {
+        setPrStatus(null)
+      } finally {
+        setPrStatusLoading(false)
+      }
     } catch (err) {
       setError('Failed to load task')
       console.error(err)
@@ -283,6 +295,32 @@ export default function TaskDetail() {
                 {prLogEntries.map(log => (
                   <li key={log.id}>{new Date(log.created_at).toLocaleTimeString()} - {log.message}</li>
                 ))}
+              </ul>
+            )}
+          </div>
+
+          <div style={{ marginTop: '0.75rem' }}>
+            <strong>Live PR Status:</strong>
+            {prStatusLoading ? (
+              <p>Refreshing PR status...</p>
+            ) : !prStatus ? (
+              <p>Unavailable</p>
+            ) : prStatus.status !== 'ok' ? (
+              <p>
+                {prStatus.status}
+                {prStatus.error ? ` - ${prStatus.error}` : ''}
+              </p>
+            ) : (
+              <ul>
+                <li>State: {prStatus.pr.state}</li>
+                <li>Merged: {String(prStatus.pr.merged)}</li>
+                <li>Draft: {String(prStatus.pr.draft)}</li>
+                <li>Mergeable: {String(prStatus.pr.mergeable)}</li>
+                <li>Head: {prStatus.pr.head}</li>
+                <li>Base: {prStatus.pr.base}</li>
+                <li>
+                  URL: <a href={prStatus.pr.url} target="_blank" rel="noreferrer">{prStatus.pr.url}</a>
+                </li>
               </ul>
             )}
           </div>
