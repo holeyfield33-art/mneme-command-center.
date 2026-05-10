@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 import os
 from pathlib import Path
 from pydantic import BaseModel
+import httpx
 
 from ..database import get_db
 from ..utils import set_emergency_stop, is_emergency_stop_active
@@ -12,6 +13,72 @@ from .auth import verify_token_header
 
 router = APIRouter(prefix="/system", tags=["system"])
 notifier = ApiNotifier()
+
+
+def _provider_health(provider: str) -> dict:
+    provider = provider.lower()
+
+    if provider == "anthropic":
+        if not settings.anthropic_api_key.strip():
+            return {"reachable": False, "status": "missing_key", "error": "ANTHROPIC_API_KEY not set"}
+        try:
+            response = httpx.get(
+                "https://api.anthropic.com/v1/models",
+                headers={
+                    "x-api-key": settings.anthropic_api_key.strip(),
+                    "anthropic-version": "2023-06-01",
+                },
+                timeout=4,
+            )
+            if response.status_code == 200:
+                return {"reachable": True, "status": "ok"}
+            return {"reachable": False, "status": "error", "error": f"HTTP {response.status_code}"}
+        except Exception as exc:
+            return {"reachable": False, "status": "error", "error": str(exc)}
+
+    if provider == "openai":
+        if not settings.openai_api_key.strip():
+            return {"reachable": False, "status": "missing_key", "error": "OPENAI_API_KEY not set"}
+        try:
+            response = httpx.get(
+                "https://api.openai.com/v1/models",
+                headers={"Authorization": f"Bearer {settings.openai_api_key.strip()}"},
+                timeout=4,
+            )
+            if response.status_code == 200:
+                return {"reachable": True, "status": "ok"}
+            return {"reachable": False, "status": "error", "error": f"HTTP {response.status_code}"}
+        except Exception as exc:
+            return {"reachable": False, "status": "error", "error": str(exc)}
+
+    if provider == "google":
+        if not settings.google_api_key.strip():
+            return {"reachable": False, "status": "missing_key", "error": "GOOGLE_API_KEY not set"}
+        try:
+            response = httpx.get(
+                "https://generativelanguage.googleapis.com/v1beta/models",
+                params={"key": settings.google_api_key.strip()},
+                timeout=4,
+            )
+            if response.status_code == 200:
+                return {"reachable": True, "status": "ok"}
+            return {"reachable": False, "status": "error", "error": f"HTTP {response.status_code}"}
+        except Exception as exc:
+            return {"reachable": False, "status": "error", "error": str(exc)}
+
+    if provider == "ollama":
+        try:
+            response = httpx.get(
+                f"{settings.ollama_base_url.rstrip('/')}/api/tags",
+                timeout=4,
+            )
+            if response.status_code == 200:
+                return {"reachable": True, "status": "ok"}
+            return {"reachable": False, "status": "error", "error": f"HTTP {response.status_code}"}
+        except Exception as exc:
+            return {"reachable": False, "status": "error", "error": str(exc)}
+
+    return {"reachable": False, "status": "unknown_provider", "error": f"Unknown provider: {provider}"}
 
 
 @router.post("/emergency-stop")
@@ -64,15 +131,37 @@ def get_runtime_status(
     }
     telegram_configured = bool(settings.telegram_bot_token.strip() and settings.telegram_chat_id.strip())
 
+    anthropic_health = _provider_health("anthropic")
+    openai_health = _provider_health("openai")
+    google_health = _provider_health("google")
+    ollama_health = _provider_health("ollama")
+
     return {
         # Multi-model
         "model_provider": provider,
         "model_provider_key_configured": provider_key_map.get(provider, False),
         "available_providers": {
-            "anthropic": {"configured": provider_key_map["anthropic"], "model": settings.anthropic_model},
-            "openai": {"configured": provider_key_map["openai"], "model": settings.openai_model},
-            "google": {"configured": provider_key_map["google"], "model": settings.google_model},
-            "ollama": {"configured": True, "url": settings.ollama_base_url, "model": settings.ollama_model},
+            "anthropic": {
+                "configured": provider_key_map["anthropic"],
+                "model": settings.anthropic_model,
+                "health": anthropic_health,
+            },
+            "openai": {
+                "configured": provider_key_map["openai"],
+                "model": settings.openai_model,
+                "health": openai_health,
+            },
+            "google": {
+                "configured": provider_key_map["google"],
+                "model": settings.google_model,
+                "health": google_health,
+            },
+            "ollama": {
+                "configured": True,
+                "url": settings.ollama_base_url,
+                "model": settings.ollama_model,
+                "health": ollama_health,
+            },
         },
         # GitHub
         "github_configured": bool(settings.github_token.strip()),

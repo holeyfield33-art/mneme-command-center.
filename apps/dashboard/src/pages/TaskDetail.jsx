@@ -138,6 +138,12 @@ export default function TaskDetail() {
   const claudeArtifacts = findLogValue('Claude artifacts written:')
   const diffSummaryPath = findLogValue('Diff summary generated:')
   const changedFiles = findLogValue('Changed files:')
+  const latestPrUrl = findLogValue('GitHub PR URL:')
+  const latestPrStatus = findLogValue('GitHub PR status:')
+  const latestPrError = findLogValue('GitHub PR error:')
+  const latestPrAttempt = findLogValue('GitHub PR attempt:')
+
+  const prLogEntries = logs.filter(log => (log.message || '').startsWith('GitHub PR '))
 
   const testLogEntries = logs.filter(log => (log.message || '').startsWith('Test command `'))
   const notificationLogEntries = logs.filter(log => (log.message || '').startsWith('Notification '))
@@ -243,9 +249,9 @@ export default function TaskDetail() {
           <div><strong>Claude Prompt Path:</strong> {claudePromptPath || 'N/A'}</div>
           <div><strong>Claude Artifacts:</strong> {claudeArtifacts || 'N/A'}</div>
           <div><strong>Diff Summary Path:</strong> {diffSummaryPath || 'N/A'}</div>
-          <div><strong>Claude Execution Required:</strong> {runtimeStatus?.claude_execution_required ? 'yes' : 'no'}</div>
+          <div><strong>Active Model Provider:</strong> {runtimeStatus?.model_provider || 'N/A'}</div>
           <div><strong>Claude Command Configured:</strong> {runtimeStatus?.claude_command_configured ? 'yes' : 'no'}</div>
-          <div><strong>Claude Key Configured:</strong> {runtimeStatus?.anthropic_api_key_configured ? 'yes' : 'no (CLI session mode)'}</div>
+          <div><strong>Active Provider Key Configured:</strong> {runtimeStatus?.model_provider_key_configured ? 'yes' : 'no'}</div>
           <div><strong>Claude Max Retries:</strong> {runtimeStatus?.claude_code_max_retries ?? 'N/A'}</div>
         </div>
         <div style={{ marginTop: '1rem' }}>
@@ -255,6 +261,31 @@ export default function TaskDetail() {
             {latestDiffApproval ? `${latestDiffApproval.status} (${latestDiffApproval.risk_level})` : 'none'}
           </p>
           <p><strong>Latest Notification Status:</strong> {latestNotification ? latestNotification.message : 'N/A'}</p>
+        </div>
+
+        <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: 'white', borderRadius: '4px', border: '1px solid #e5e5e5' }}>
+          <strong>GitHub Pull Request Metadata</strong>
+          <p><strong>Latest PR Attempt:</strong> {latestPrAttempt || 'N/A'}</p>
+          <p><strong>Latest PR Status:</strong> {latestPrStatus || 'N/A'}</p>
+          <p>
+            <strong>Latest PR URL:</strong>{' '}
+            {latestPrUrl ? (
+              <a href={latestPrUrl} target="_blank" rel="noreferrer">{latestPrUrl}</a>
+            ) : 'N/A'}
+          </p>
+          <p><strong>Latest PR Error:</strong> {latestPrError || 'N/A'}</p>
+          <div>
+            <strong>PR Event Logs:</strong>
+            {prLogEntries.length === 0 ? (
+              <p>No PR logs yet.</p>
+            ) : (
+              <ul>
+                {prLogEntries.map(log => (
+                  <li key={log.id}>{new Date(log.created_at).toLocaleTimeString()} - {log.message}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
         <div>
           <strong>Test Results:</strong>

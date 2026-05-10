@@ -131,6 +131,10 @@ export default function Settings() {
             <p style={{ fontSize: 12, color: '#666', margin: 0 }}>
               Status: {status?.available_providers?.anthropic?.configured ? '✅ Key configured' : '❌ No key set'}
             </p>
+            <p style={{ fontSize: 12, color: '#666', margin: '0.35rem 0 0' }}>
+              Health: {status?.available_providers?.anthropic?.health?.status || 'unknown'}
+              {status?.available_providers?.anthropic?.health?.error ? ` (${status.available_providers.anthropic.health.error})` : ''}
+            </p>
           </>
         )}
 
@@ -145,6 +149,10 @@ export default function Settings() {
             </div>
             <p style={{ fontSize: 12, color: '#666', margin: 0 }}>
               Status: {status?.available_providers?.openai?.configured ? '✅ Key configured' : '❌ No key set'}
+            </p>
+            <p style={{ fontSize: 12, color: '#666', margin: '0.35rem 0 0' }}>
+              Health: {status?.available_providers?.openai?.health?.status || 'unknown'}
+              {status?.available_providers?.openai?.health?.error ? ` (${status.available_providers.openai.health.error})` : ''}
             </p>
           </>
         )}
@@ -161,6 +169,10 @@ export default function Settings() {
             <p style={{ fontSize: 12, color: '#666', margin: 0 }}>
               Status: {status?.available_providers?.google?.configured ? '✅ Key configured' : '❌ No key set'}
             </p>
+            <p style={{ fontSize: 12, color: '#666', margin: '0.35rem 0 0' }}>
+              Health: {status?.available_providers?.google?.health?.status || 'unknown'}
+              {status?.available_providers?.google?.health?.error ? ` (${status.available_providers.google.health.error})` : ''}
+            </p>
           </>
         )}
 
@@ -174,6 +186,10 @@ export default function Settings() {
               </select>
             </div>
             <p style={{ fontSize: 12, color: '#666', margin: 0 }}>Free &amp; local — requires Ollama running on this machine.</p>
+            <p style={{ fontSize: 12, color: '#666', margin: '0.35rem 0 0' }}>
+              Health: {status?.available_providers?.ollama?.health?.status || 'unknown'}
+              {status?.available_providers?.ollama?.health?.error ? ` (${status.available_providers.ollama.health.error})` : ''}
+            </p>
           </>
         )}
       </div>

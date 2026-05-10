@@ -204,6 +204,10 @@ export default function Home() {
           <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
             <li><strong>Active Model Provider:</strong> {runtimeStatus.model_provider}</li>
             <li><strong>Active Provider Key Configured:</strong> {runtimeStatus.model_provider_key_configured ? 'yes' : 'no'}</li>
+            <li>
+              <strong>Active Provider Health:</strong>{' '}
+              {runtimeStatus.available_providers?.[runtimeStatus.model_provider]?.health?.status || 'unknown'}
+            </li>
             <li><strong>GitHub Configured:</strong> {runtimeStatus.github_configured ? 'yes' : 'no'}</li>
             <li><strong>Legacy Claude CLI Command Configured:</strong> {runtimeStatus.claude_command_configured ? 'yes' : 'no'}</li>
             <li><strong>Claude Timeout (s):</strong> {runtimeStatus.claude_code_timeout_seconds}</li>
