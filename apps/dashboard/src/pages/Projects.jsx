@@ -13,6 +13,8 @@ export default function Projects() {
   const [connectingRepo, setConnectingRepo] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [recentProjectId, setRecentProjectId] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     repo_path: '',
@@ -47,9 +49,13 @@ export default function Projects() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      await projects.create(formData)
+      setError('')
+      setSuccess('')
+      const response = await projects.create(formData)
       setFormData({ name: '', repo_path: '', repo_url: '', claude_code_command: '', default_branch: 'main' })
       setShowForm(false)
+      setRecentProjectId(response.data?.id || '')
+      setSuccess('Project created successfully.')
       loadProjects()
     } catch (err) {
       setError('Failed to create project')
@@ -74,11 +80,14 @@ export default function Projects() {
     try {
       setConnectingRepo(repo.full_name)
       setError('')
-      await projects.connectGithub({
+      setSuccess('')
+      const response = await projects.connectGithub({
         repo_url: repo.clone_url || repo.html_url,
         name: repo.full_name,
         default_branch: repo.default_branch || 'main',
       })
+      setRecentProjectId(response.data?.id || '')
+      setSuccess(`Connected ${repo.full_name} successfully.`)
       setShowGithubPicker(false)
       setGithubRepos([])
       setGithubQuery('')
@@ -137,6 +146,28 @@ export default function Projects() {
       </div>
 
       {error && <div style={{ color: 'red', marginBottom: '1rem', padding: '1rem', backgroundColor: '#ffe6e6', borderRadius: '4px' }}>{error}</div>}
+      {success && (
+        <div style={{ color: '#1c6b2f', marginBottom: '1rem', padding: '1rem', backgroundColor: '#e8f8ec', borderRadius: '4px', border: '1px solid #b9e5c5' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <span>{success}</span>
+            {recentProjectId && (
+              <button
+                onClick={() => navigate(`/project/${recentProjectId}`)}
+                style={{
+                  padding: '0.45rem 0.8rem',
+                  backgroundColor: '#198754',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Open Project
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
@@ -210,7 +241,7 @@ export default function Projects() {
               />
             </div>
             <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.25rem' }}>Claude Command Override (optional)</label>
+              <label style={{ display: 'block', marginBottom: '0.25rem' }}>Agent CLI Command Override (optional)</label>
               <input
                 type="text"
                 name="claude_code_command"
@@ -367,7 +398,7 @@ export default function Projects() {
               <strong>Branch:</strong> {project.default_branch}
             </p>
             <p style={{ margin: '0.5rem 0', color: '#777', fontSize: '0.9rem' }}>
-              <strong>Claude Command:</strong> {project.claude_code_command || 'global default'}
+              <strong>Agent CLI Command:</strong> {project.claude_code_command || 'global default'}
             </p>
           </div>
         ))}

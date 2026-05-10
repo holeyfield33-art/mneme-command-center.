@@ -22,6 +22,8 @@ export default function ProjectDetail() {
   const [modelProvider, setModelProvider] = useState('')
   const [modelName, setModelName] = useState('')
   const [savingModel, setSavingModel] = useState(false)
+  const [savedModelMessage, setSavedModelMessage] = useState('')
+  const [useGlobalModel, setUseGlobalModel] = useState(false)
 
   const loadProject = useCallback(async () => {
     try {
@@ -33,6 +35,8 @@ export default function ProjectDetail() {
       ])
       setProject(projectRes.data)
       setTaskList(tasksRes.data)
+      const isGlobal = !projectRes.data.model_provider && !projectRes.data.model_name
+      setUseGlobalModel(isGlobal)
       setModelProvider(projectRes.data.model_provider || 'anthropic')
       setModelName(projectRes.data.model_name || '')
     } catch (err) {
@@ -78,9 +82,16 @@ export default function ProjectDetail() {
   const handleSaveModel = async () => {
     try {
       setSavingModel(true)
+      setSavedModelMessage('')
       setError('')
-      await projects.setModel(projectId, modelProvider, modelName)
+      await projects.setModel(
+        projectId,
+        useGlobalModel ? null : modelProvider,
+        useGlobalModel ? null : modelName
+      )
       await loadProject()
+      setSavedModelMessage(useGlobalModel ? 'Project now inherits global model settings.' : 'Project model override saved.')
+      setTimeout(() => setSavedModelMessage(''), 3000)
     } catch (err) {
       setError(err?.response?.data?.detail || 'Failed to update project model settings')
     } finally {
@@ -114,6 +125,7 @@ export default function ProjectDetail() {
       </button>
 
       {error && <div style={{ color: 'red', marginBottom: '1rem', padding: '1rem', backgroundColor: '#ffe6e6', borderRadius: '4px' }}>{error}</div>}
+      {savedModelMessage && <div style={{ color: '#1c6b2f', marginBottom: '1rem', padding: '1rem', backgroundColor: '#e8f8ec', borderRadius: '4px', border: '1px solid #b9e5c5' }}>{savedModelMessage}</div>}
 
       <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
         <h1>{project.name}</h1>
@@ -124,16 +136,28 @@ export default function ProjectDetail() {
           <div><strong>Status:</strong> {project.status}</div>
           <div><strong>Model Provider:</strong> {project.model_provider || 'global default'}</div>
           <div><strong>Model Name:</strong> {project.model_name || 'provider default'}</div>
-          <div style={{ gridColumn: '1 / -1' }}><strong>Claude Command Override:</strong> {project.claude_code_command || 'global default'}</div>
+          <div style={{ gridColumn: '1 / -1' }}><strong>Agent CLI Command Override:</strong> {project.claude_code_command || 'global default'}</div>
         </div>
 
         <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #ddd' }}>
           <h3 style={{ margin: '0 0 0.75rem 0' }}>Model Override</h3>
+          <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <input
+              id="inherit-global-model"
+              type="checkbox"
+              checked={useGlobalModel}
+              onChange={(e) => setUseGlobalModel(e.target.checked)}
+            />
+            <label htmlFor="inherit-global-model" style={{ fontWeight: 600 }}>
+              Inherit global provider and model
+            </label>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
             <div>
               <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 'bold' }}>Provider</label>
               <select
                 value={modelProvider}
+                disabled={useGlobalModel}
                 onChange={(e) => {
                   const provider = e.target.value
                   setModelProvider(provider)
@@ -153,6 +177,7 @@ export default function ProjectDetail() {
               <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 'bold' }}>Model</label>
               <input
                 value={modelName}
+                disabled={useGlobalModel}
                 onChange={(e) => setModelName(e.target.value)}
                 list="provider-models"
                 placeholder="provider default"
@@ -181,6 +206,9 @@ export default function ProjectDetail() {
               {savingModel ? 'Saving...' : 'Save'}
             </button>
           </div>
+          <p style={{ margin: '0.6rem 0 0', fontSize: '0.85rem', color: '#666' }}>
+            Use global defaults for simple setup, or set a project-specific provider/model for custom behavior.
+          </p>
         </div>
       </div>
 

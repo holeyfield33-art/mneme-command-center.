@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { worker, tasks, approvals, system } from '../api'
+import { worker, tasks, approvals, system, projects } from '../api'
 
 export default function Home() {
   const navigate = useNavigate()
@@ -13,17 +13,19 @@ export default function Home() {
   const [runtimeStatus, setRuntimeStatus] = useState(null)
   const [workerProcess, setWorkerProcess] = useState({ running: false, pid: null })
   const [workerActionLoading, setWorkerActionLoading] = useState(false)
+  const [projectCount, setProjectCount] = useState(0)
 
   const loadDashboard = useCallback(async () => {
     try {
       setError('')
-      const [workersRes, tasksRes, approvalsRes, stopStatusRes, runtimeRes, workerProcessRes] = await Promise.all([
+      const [workersRes, tasksRes, approvalsRes, stopStatusRes, runtimeRes, workerProcessRes, projectsRes] = await Promise.all([
         worker.getStatus(),
         tasks.list(),
         approvals.list('pending'),
         system.getEmergencyStopStatus(),
         system.getRuntimeStatus(),
         worker.getProcessStatus(),
+        projects.list(),
       ])
       
       setWorkers(workersRes.data)
@@ -32,6 +34,7 @@ export default function Home() {
       setEmergencyStopActive(stopStatusRes.data.active)
       setRuntimeStatus(runtimeRes.data)
       setWorkerProcess(workerProcessRes.data)
+      setProjectCount(projectsRes.data.length || 0)
     } catch (err) {
       setError('Failed to load dashboard')
       console.error(err)
@@ -101,6 +104,34 @@ export default function Home() {
     return <div style={{ padding: '2rem' }}>Loading...</div>
   }
 
+  const setupChecklist = [
+    {
+      label: 'Model provider configured',
+      done: !!runtimeStatus?.model_provider_key_configured || runtimeStatus?.model_provider === 'ollama',
+      action: () => navigate('/settings'),
+      actionText: 'Open Settings',
+    },
+    {
+      label: 'GitHub token configured',
+      done: !!runtimeStatus?.github_configured,
+      action: () => navigate('/settings'),
+      actionText: 'Add GitHub Token',
+    },
+    {
+      label: 'At least one project connected',
+      done: projectCount > 0,
+      action: () => navigate('/projects'),
+      actionText: 'Connect Project',
+    },
+    {
+      label: 'Worker process running',
+      done: !!workerProcess.running,
+      action: workerProcess.running ? handleStopWorker : handleStartWorker,
+      actionText: workerProcess.running ? 'Stop Worker' : 'Start Worker',
+    },
+  ]
+  const completedSetupSteps = setupChecklist.filter(item => item.done).length
+
   return (
     <div style={{ padding: '2rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -141,6 +172,70 @@ export default function Home() {
       </div>
 
       {error && <div style={{ color: 'red', marginBottom: '1rem', padding: '1rem', backgroundColor: '#ffe6e6', borderRadius: '4px' }}>{error}</div>}
+
+      <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#eef6ff', borderRadius: '8px', border: '1px solid #c7def7' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>Quick Setup Checklist</h2>
+          <button
+            onClick={() => navigate('/setup')}
+            style={{
+              padding: '0.45rem 0.8rem',
+              backgroundColor: '#0d6efd',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Open Setup Wizard
+          </button>
+        </div>
+        <p style={{ margin: '0.5rem 0 0.75rem 0', color: '#335' }}>
+          {completedSetupSteps}/{setupChecklist.length} completed
+        </p>
+        <div style={{ display: 'grid', gap: '0.5rem' }}>
+          {setupChecklist.map((item, idx) => (
+            <div
+              key={item.label}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '0.75rem',
+                backgroundColor: 'white',
+                border: '1px solid #d7e8fa',
+                borderRadius: '6px',
+                padding: '0.6rem 0.75rem',
+              }}
+            >
+              <div>
+                <strong>{idx + 1}. {item.label}</strong>
+                <span style={{ marginLeft: '0.5rem', color: item.done ? '#198754' : '#b26a00', fontWeight: 600 }}>
+                  {item.done ? 'Done' : 'Needs attention'}
+                </span>
+              </div>
+              {!item.done && (
+                <button
+                  onClick={item.action}
+                  disabled={workerActionLoading && item.label === 'Worker process running'}
+                  style={{
+                    padding: '0.4rem 0.75rem',
+                    backgroundColor: '#2c3e50',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {item.actionText}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Worker Status */}
       <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
@@ -209,9 +304,9 @@ export default function Home() {
               {runtimeStatus.available_providers?.[runtimeStatus.model_provider]?.health?.status || 'unknown'}
             </li>
             <li><strong>GitHub Configured:</strong> {runtimeStatus.github_configured ? 'yes' : 'no'}</li>
-            <li><strong>Legacy Claude CLI Command Configured:</strong> {runtimeStatus.claude_command_configured ? 'yes' : 'no'}</li>
-            <li><strong>Claude Timeout (s):</strong> {runtimeStatus.claude_code_timeout_seconds}</li>
-            <li><strong>Claude Max Retries:</strong> {runtimeStatus.claude_code_max_retries}</li>
+            <li><strong>Legacy CLI Command Configured:</strong> {runtimeStatus.claude_command_configured ? 'yes' : 'no'}</li>
+            <li><strong>Execution Timeout (s):</strong> {runtimeStatus.claude_code_timeout_seconds}</li>
+            <li><strong>Execution Max Retries:</strong> {runtimeStatus.claude_code_max_retries}</li>
             <li><strong>Notifications Enabled:</strong> {runtimeStatus.notifications_enabled ? 'yes' : 'no'}</li>
             <li><strong>Telegram Configured:</strong> {runtimeStatus.telegram_configured ? 'yes' : 'no'}</li>
           </ul>

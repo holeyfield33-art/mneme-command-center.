@@ -19,6 +19,20 @@ export default function TaskDetail() {
   const [rerunLoading, setRerunLoading] = useState(false)
   const [prStatusLoading, setPrStatusLoading] = useState(false)
   const [prStatus, setPrStatus] = useState(null)
+  const [lastPrRefreshAt, setLastPrRefreshAt] = useState(null)
+
+  const refreshPrStatus = useCallback(async () => {
+    setPrStatusLoading(true)
+    try {
+      const prStatusRes = await tasks.getGithubPrStatus(taskId)
+      setPrStatus(prStatusRes.data)
+      setLastPrRefreshAt(new Date())
+    } catch (_err) {
+      setPrStatus(null)
+    } finally {
+      setPrStatusLoading(false)
+    }
+  }, [taskId])
 
   const loadTask = useCallback(async () => {
     try {
@@ -34,23 +48,14 @@ export default function TaskDetail() {
 
       const approvalsRes = await approvals.list(undefined, taskId)
       setTaskApprovals(approvalsRes.data)
-
-      setPrStatusLoading(true)
-      try {
-        const prStatusRes = await tasks.getGithubPrStatus(taskId)
-        setPrStatus(prStatusRes.data)
-      } catch (_err) {
-        setPrStatus(null)
-      } finally {
-        setPrStatusLoading(false)
-      }
+      await refreshPrStatus()
     } catch (err) {
       setError('Failed to load task')
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }, [taskId])
+  }, [taskId, refreshPrStatus])
 
   useEffect(() => {
     loadTask()
@@ -71,6 +76,18 @@ export default function TaskDetail() {
   useEffect(() => {
     loadArtifact(artifactType)
   }, [taskId, artifactType])
+
+  useEffect(() => {
+    if (!prStatus?.pr_url) {
+      return
+    }
+
+    const timer = setInterval(() => {
+      refreshPrStatus()
+    }, 20000)
+
+    return () => clearInterval(timer)
+  }, [prStatus?.pr_url, refreshPrStatus])
 
   const loadArtifact = async (selectedType) => {
     setLoadingArtifact(true)
@@ -253,18 +270,18 @@ export default function TaskDetail() {
                 fontWeight: 'bold'
               }}
             >
-              {rerunLoading ? 'Queueing...' : 'Rerun with Claude'}
+              {rerunLoading ? 'Queueing...' : 'Rerun Execution'}
             </button>
           </div>
         )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-          <div><strong>Claude Prompt Path:</strong> {claudePromptPath || 'N/A'}</div>
-          <div><strong>Claude Artifacts:</strong> {claudeArtifacts || 'N/A'}</div>
+          <div><strong>Agent Prompt Path:</strong> {claudePromptPath || 'N/A'}</div>
+          <div><strong>Agent Artifacts:</strong> {claudeArtifacts || 'N/A'}</div>
           <div><strong>Diff Summary Path:</strong> {diffSummaryPath || 'N/A'}</div>
           <div><strong>Active Model Provider:</strong> {runtimeStatus?.model_provider || 'N/A'}</div>
-          <div><strong>Claude Command Configured:</strong> {runtimeStatus?.claude_command_configured ? 'yes' : 'no'}</div>
+          <div><strong>Legacy CLI Command Configured:</strong> {runtimeStatus?.claude_command_configured ? 'yes' : 'no'}</div>
           <div><strong>Active Provider Key Configured:</strong> {runtimeStatus?.model_provider_key_configured ? 'yes' : 'no'}</div>
-          <div><strong>Claude Max Retries:</strong> {runtimeStatus?.claude_code_max_retries ?? 'N/A'}</div>
+          <div><strong>Execution Max Retries:</strong> {runtimeStatus?.claude_code_max_retries ?? 'N/A'}</div>
         </div>
         <div style={{ marginTop: '1rem' }}>
           <p><strong>Changed Files:</strong> {changedFiles || 'N/A'}</p>
@@ -300,7 +317,29 @@ export default function TaskDetail() {
           </div>
 
           <div style={{ marginTop: '0.75rem' }}>
-            <strong>Live PR Status:</strong>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <strong>Live PR Status</strong>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button
+                  onClick={refreshPrStatus}
+                  disabled={prStatusLoading}
+                  style={{
+                    padding: '0.4rem 0.7rem',
+                    backgroundColor: '#0d6efd',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {prStatusLoading ? 'Refreshing...' : 'Refresh'}
+                </button>
+                <span style={{ fontSize: '0.8rem', color: '#666' }}>
+                  Auto-refresh every 20s{lastPrRefreshAt ? ` · Last ${lastPrRefreshAt.toLocaleTimeString()}` : ''}
+                </span>
+              </div>
+            </div>
+
             {prStatusLoading ? (
               <p>Refreshing PR status...</p>
             ) : !prStatus ? (
@@ -311,17 +350,27 @@ export default function TaskDetail() {
                 {prStatus.error ? ` - ${prStatus.error}` : ''}
               </p>
             ) : (
-              <ul>
-                <li>State: {prStatus.pr.state}</li>
-                <li>Merged: {String(prStatus.pr.merged)}</li>
-                <li>Draft: {String(prStatus.pr.draft)}</li>
-                <li>Mergeable: {String(prStatus.pr.mergeable)}</li>
-                <li>Head: {prStatus.pr.head}</li>
-                <li>Base: {prStatus.pr.base}</li>
-                <li>
-                  URL: <a href={prStatus.pr.url} target="_blank" rel="noreferrer">{prStatus.pr.url}</a>
-                </li>
-              </ul>
+              <div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', margin: '0.5rem 0' }}>
+                  <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', backgroundColor: prStatus.pr.state === 'open' ? '#e7f3ff' : '#f0f0f0' }}>
+                    State: {prStatus.pr.state}
+                  </span>
+                  <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', backgroundColor: prStatus.pr.merged ? '#e8f8ec' : '#fff4e5' }}>
+                    Merged: {String(prStatus.pr.merged)}
+                  </span>
+                  <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', backgroundColor: prStatus.pr.draft ? '#fff4e5' : '#eef6ff' }}>
+                    Draft: {String(prStatus.pr.draft)}
+                  </span>
+                  <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', backgroundColor: '#f5f5f5' }}>
+                    Mergeable: {String(prStatus.pr.mergeable)}
+                  </span>
+                </div>
+                <p style={{ margin: '0.35rem 0' }}><strong>Head:</strong> {prStatus.pr.head}</p>
+                <p style={{ margin: '0.35rem 0' }}><strong>Base:</strong> {prStatus.pr.base}</p>
+                <p style={{ margin: '0.35rem 0' }}>
+                  <strong>URL:</strong> <a href={prStatus.pr.url} target="_blank" rel="noreferrer">{prStatus.pr.url}</a>
+                </p>
+              </div>
             )}
           </div>
         </div>
