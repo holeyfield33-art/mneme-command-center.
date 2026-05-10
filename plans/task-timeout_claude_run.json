@@ -1,0 +1,11 @@
+{
+  "task_id": "task-timeout",
+  "command": [
+    "echo",
+    "plans/task-timeout.md"
+  ],
+  "exit_code": 124,
+  "success": false,
+  "attempts": 1,
+  "generated_at": "2026-05-10T15:33:55.627892+00:00"
+}

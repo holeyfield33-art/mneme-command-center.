@@ -11,16 +11,19 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [runtimeStatus, setRuntimeStatus] = useState(null)
+  const [workerProcess, setWorkerProcess] = useState({ running: false, pid: null })
+  const [workerActionLoading, setWorkerActionLoading] = useState(false)
 
   const loadDashboard = useCallback(async () => {
     try {
       setError('')
-      const [workersRes, tasksRes, approvalsRes, stopStatusRes, runtimeRes] = await Promise.all([
+      const [workersRes, tasksRes, approvalsRes, stopStatusRes, runtimeRes, workerProcessRes] = await Promise.all([
         worker.getStatus(),
         tasks.list(),
         approvals.list('pending'),
         system.getEmergencyStopStatus(),
-        system.getRuntimeStatus()
+        system.getRuntimeStatus(),
+        worker.getProcessStatus(),
       ])
       
       setWorkers(workersRes.data)
@@ -28,6 +31,7 @@ export default function Home() {
       setPendingApprovals(approvalsRes.data)
       setEmergencyStopActive(stopStatusRes.data.active)
       setRuntimeStatus(runtimeRes.data)
+      setWorkerProcess(workerProcessRes.data)
     } catch (err) {
       setError('Failed to load dashboard')
       console.error(err)
@@ -66,6 +70,30 @@ export default function Home() {
       setEmergencyStopActive(false)
     } catch (err) {
       setError('Failed to clear emergency stop')
+    }
+  }
+
+  const handleStartWorker = async () => {
+    try {
+      setWorkerActionLoading(true)
+      await worker.launch()
+      await loadDashboard()
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Failed to start worker')
+    } finally {
+      setWorkerActionLoading(false)
+    }
+  }
+
+  const handleStopWorker = async () => {
+    try {
+      setWorkerActionLoading(true)
+      await worker.stop()
+      await loadDashboard()
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Failed to stop worker')
+    } finally {
+      setWorkerActionLoading(false)
     }
   }
 
@@ -117,6 +145,44 @@ export default function Home() {
       {/* Worker Status */}
       <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
         <h2>Worker Status</h2>
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          {workerProcess.running ? (
+            <button
+              onClick={handleStopWorker}
+              disabled={workerActionLoading}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              {workerActionLoading ? 'Stopping...' : 'Stop Worker'}
+            </button>
+          ) : (
+            <button
+              onClick={handleStartWorker}
+              disabled={workerActionLoading}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#198754',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              {workerActionLoading ? 'Starting...' : 'Start Worker'}
+            </button>
+          )}
+          <span style={{ alignSelf: 'center', fontSize: '0.9rem', color: '#555' }}>
+            API-managed process: {workerProcess.running ? `running (pid ${workerProcess.pid})` : 'stopped'}
+          </span>
+        </div>
         {workers.length === 0 ? (
           <p>No workers connected</p>
         ) : (
@@ -136,13 +202,12 @@ export default function Home() {
           <p>Runtime settings unavailable</p>
         ) : (
           <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            <li><strong>Claude Execution Required:</strong> {runtimeStatus.claude_execution_required ? 'yes' : 'no'}</li>
-            <li><strong>Claude Configured:</strong> {runtimeStatus.claude_configured ? 'yes' : 'no'}</li>
-            <li><strong>Claude Command Configured:</strong> {runtimeStatus.claude_command_configured ? 'yes' : 'no'}</li>
-            <li><strong>Claude API Key Configured:</strong> {runtimeStatus.anthropic_api_key_configured ? 'yes' : 'no (CLI session mode)'}</li>
+            <li><strong>Active Model Provider:</strong> {runtimeStatus.model_provider}</li>
+            <li><strong>Active Provider Key Configured:</strong> {runtimeStatus.model_provider_key_configured ? 'yes' : 'no'}</li>
+            <li><strong>GitHub Configured:</strong> {runtimeStatus.github_configured ? 'yes' : 'no'}</li>
+            <li><strong>Legacy Claude CLI Command Configured:</strong> {runtimeStatus.claude_command_configured ? 'yes' : 'no'}</li>
             <li><strong>Claude Timeout (s):</strong> {runtimeStatus.claude_code_timeout_seconds}</li>
             <li><strong>Claude Max Retries:</strong> {runtimeStatus.claude_code_max_retries}</li>
-            <li><strong>Prompt Placeholder in Command:</strong> {runtimeStatus.claude_command_supports_prompt_placeholder ? 'yes' : 'no (auto-appended)'}</li>
             <li><strong>Notifications Enabled:</strong> {runtimeStatus.notifications_enabled ? 'yes' : 'no'}</li>
             <li><strong>Telegram Configured:</strong> {runtimeStatus.telegram_configured ? 'yes' : 'no'}</li>
           </ul>

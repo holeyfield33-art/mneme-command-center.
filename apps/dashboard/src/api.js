@@ -24,7 +24,10 @@ export const projects = {
   get: (id) => apiClient.get(`/projects/${id}`),
   create: (data) => apiClient.post('/projects', data),
   update: (id, data) => apiClient.put(`/projects/${id}`, data),
-  delete: (id) => apiClient.delete(`/projects/${id}`)
+  delete: (id) => apiClient.delete(`/projects/${id}`),
+  connectGithub: (data) => apiClient.post('/projects/connect-github', data),
+  listGithubRepos: () => apiClient.get('/projects/github-repos'),
+  setModel: (id, provider, model) => apiClient.put(`/projects/${id}`, { model_provider: provider, model_name: model })
 }
 
 export const tasks = {
@@ -59,14 +62,18 @@ export const approvals = {
 }
 
 export const worker = {
-  getStatus: () => apiClient.get('/worker/status')
+  getStatus: () => apiClient.get('/worker/status'),
+  launch: () => apiClient.post('/worker/launch'),
+  stop: () => apiClient.post('/worker/stop'),
+  getProcessStatus: () => apiClient.get('/worker/process-status')
 }
 
 export const system = {
   emergencyStop: () => apiClient.post('/system/emergency-stop'),
   clearEmergencyStop: () => apiClient.post('/system/emergency-stop/clear'),
   getEmergencyStopStatus: () => apiClient.get('/system/emergency-stop/status'),
-  getRuntimeStatus: () => apiClient.get('/system/runtime-status')
+  getRuntimeStatus: () => apiClient.get('/system/runtime-status'),
+  updateSettings: (data) => apiClient.put('/system/settings', data)
 }
 
 export default apiClient

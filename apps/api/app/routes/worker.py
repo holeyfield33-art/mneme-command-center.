@@ -3,6 +3,10 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime
 import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 from ..database import get_db
 from ..events import broadcast_now
@@ -12,6 +16,8 @@ from .auth import verify_token_header
 
 router = APIRouter(prefix="/worker", tags=["worker"])
 
+# In-memory process handle (lives only for API process lifetime)
+_worker_process: subprocess.Popen | None = None
 
 class WorkerHeartbeat(BaseModel):
     worker_id: str
@@ -39,6 +45,8 @@ class TaskForWorker(BaseModel):
     risk_level: str
     status: str
     approved_plan_summary: str | None = None
+    model_provider: str | None = None
+    model_name: str | None = None
     
     class Config:
         from_attributes = True
@@ -90,6 +98,72 @@ def get_worker_status(
     return workers
 
 
+@router.post("/launch")
+def launch_worker(
+    authorization: str = Header(None),
+):
+    """Start the worker process if it is not already running."""
+    global _worker_process
+    verify_token_header(authorization)
+
+    if _worker_process is not None and _worker_process.poll() is None:
+        raise HTTPException(status_code=409, detail="Worker process is already running.")
+
+    api_url = os.getenv("MNEME_API_URL", "http://localhost:8000")
+    env = {**os.environ, "MNEME_API_URL": api_url}
+
+    # Determine python executable (same venv as API)
+    python = sys.executable
+    workspace_root = str(Path(__file__).resolve().parents[4])
+
+    try:
+        _worker_process = subprocess.Popen(
+            [python, "-m", "worker.main"],
+            cwd=workspace_root,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to start worker: {exc}")
+
+    return {"status": "started", "pid": _worker_process.pid}
+
+
+@router.post("/stop")
+def stop_worker(
+    authorization: str = Header(None),
+):
+    """Send SIGTERM to the managed worker process."""
+    global _worker_process
+    verify_token_header(authorization)
+
+    if _worker_process is None or _worker_process.poll() is not None:
+        raise HTTPException(status_code=409, detail="No running worker process to stop.")
+
+    _worker_process.terminate()
+    try:
+        _worker_process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        _worker_process.kill()
+
+    pid = _worker_process.pid
+    _worker_process = None
+    return {"status": "stopped", "pid": pid}
+
+
+@router.get("/process-status")
+def get_process_status(
+    authorization: str = Header(None),
+):
+    """Return whether the API-managed worker process is running."""
+    verify_token_header(authorization)
+    if _worker_process is None:
+        return {"running": False, "pid": None}
+    running = _worker_process.poll() is None
+    return {"running": running, "pid": _worker_process.pid if running else None}
+
+
 @router.get("/tasks/queued", response_model=list[TaskForWorker])
 def get_queued_tasks(
     db: Session = Depends(get_db)
@@ -118,6 +192,8 @@ def get_queued_tasks(
                 mode=task.mode.value,
                 risk_level=task.risk_level.value,
                 status=task.status.value,
+                model_provider=project.model_provider,
+                model_name=project.model_name,
             )
         )
     return response
@@ -163,6 +239,8 @@ def get_execution_ready_tasks(
                 risk_level=task.risk_level.value,
                 status=task.status.value,
                 approved_plan_summary=latest_approved_plan.summary if latest_approved_plan else None,
+                model_provider=project.model_provider,
+                model_name=project.model_name,
             )
         )
 

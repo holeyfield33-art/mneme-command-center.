@@ -74,6 +74,8 @@ class Project(Base):
     claude_code_command = Column(String, nullable=True)
     default_branch = Column(String, default="main")
     status = Column(Enum(ProjectStatus), default=ProjectStatus.ACTIVE)
+    model_provider = Column(String, nullable=True)
+    model_name = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     
     # Relationships

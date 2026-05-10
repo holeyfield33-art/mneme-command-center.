@@ -1,0 +1,11 @@
+{
+  "task_id": "task-ak",
+  "command": [
+    "echo",
+    "plans/task-ak.md"
+  ],
+  "exit_code": 0,
+  "success": true,
+  "attempts": 1,
+  "generated_at": "2026-05-10T15:33:55.623155+00:00"
+}

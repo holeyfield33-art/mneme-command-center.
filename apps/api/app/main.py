@@ -31,6 +31,14 @@ def ensure_schema_compatibility() -> None:
             connection.execute(
                 text("ALTER TABLE projects ADD COLUMN claude_code_command VARCHAR")
             )
+        if "model_provider" not in project_columns:
+            connection.execute(
+                text("ALTER TABLE projects ADD COLUMN model_provider VARCHAR")
+            )
+        if "model_name" not in project_columns:
+            connection.execute(
+                text("ALTER TABLE projects ADD COLUMN model_name VARCHAR")
+            )
 
 
 class BroadcastRequest(BaseModel):

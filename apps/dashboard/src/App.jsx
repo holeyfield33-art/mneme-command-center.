@@ -8,6 +8,8 @@ import ProjectDetail from './pages/ProjectDetail'
 import TaskDetail from './pages/TaskDetail'
 import Approvals from './pages/Approvals'
 import useSSE from './useSSE'
+import Settings from './pages/Settings'
+import SetupWizard from './pages/SetupWizard'
 
 function Layout({ children }) {
   const navigate = useNavigate()
@@ -38,6 +40,9 @@ function Layout({ children }) {
           </Link>
           <Link to="/approvals" style={{ color: 'white', textDecoration: 'none' }}>
             Approvals
+          </Link>
+          <Link to="/settings" style={{ color: 'white', textDecoration: 'none' }}>
+            ⚙️ Settings
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}>
             <span
@@ -139,6 +144,26 @@ export default function App() {
               <Layout>
                 <ProtectedRoute>
                   <Approvals />
+                </ProtectedRoute>
+              </Layout>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <Layout>
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              </Layout>
+            }
+          />
+          <Route
+            path="/setup"
+            element={
+              <Layout>
+                <ProtectedRoute>
+                  <SetupWizard />
                 </ProtectedRoute>
               </Layout>
             }

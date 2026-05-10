@@ -38,6 +38,7 @@ from worker.repo_planning import (
 )
 from worker.checkpointer import clear_checkpoint, load_checkpoint, save_checkpoint
 from worker.notifier import WorkerNotifier
+from worker.llm_client import build_agent_loop
 
 
 class MnemeWorker:
@@ -58,6 +59,7 @@ class MnemeWorker:
         self.claude_artifact_dir = Path(os.getenv("CLAUDE_ARTIFACT_DIR", str(self.workspace_root / "plans")))
         self.allow_mock_claude_for_tests = os.getenv("ALLOW_MOCK_CLAUDE_FOR_TESTS", "false").strip().lower() == "true"
         self.enable_mock_claude_execution = os.getenv("ENABLE_MOCK_CLAUDE_EXECUTION", "false").strip().lower() == "true"
+        self.agent_max_iterations = int(os.getenv("AGENT_MAX_ITERATIONS", "30"))
         self.notifier = WorkerNotifier()
         self._online_notified = False
 
@@ -581,6 +583,65 @@ class MnemeWorker:
         self.add_task_log(task_id, "info", f"Claude command completed successfully (exit code {code}, attempts={attempt})")
         return True, "ok"
 
+    def _run_agent_loop(
+        self,
+        task: Dict[str, Any],
+        repo_path: Path,
+        prompt_text: str,
+    ) -> tuple[bool, str]:
+        """Run the agentic tool-use loop for a task. Falls back to legacy CLI if configured."""
+        task_id = task.get("id", "")
+        project_provider = task.get("model_provider") or None
+        project_model = task.get("model_name") or None
+
+        # Legacy CLI fallback: if CLAUDE_CODE_COMMAND is set AND no provider override, use old path
+        project_claude_code_command = task.get("project_claude_code_command")
+        if not project_provider and (project_claude_code_command or self.claude_code_command):
+            self.add_task_log(task_id, "info", "Using legacy Claude CLI execution path.")
+            prompt_path = self._claude_prompt_path(task_id)
+            save_markdown(prompt_path, prompt_text)
+            return self._run_claude_code(task_id, repo_path, prompt_path, project_claude_code_command)
+
+        # Mock path for tests
+        if self._mock_claude_enabled():
+            self.add_task_log(task_id, "warning", "Agent execution mocked in test mode.")
+            return True, "mocked"
+
+        def log_fn(level: str, message: str) -> None:
+            self.add_task_log(task_id, level, message)
+
+        try:
+            agent = build_agent_loop(
+                project_provider=project_provider,
+                project_model=project_model,
+                repo_path=repo_path,
+                log_fn=log_fn,
+                max_iterations=self.agent_max_iterations,
+                bash_timeout=self.command_timeout_seconds,
+            )
+        except (ValueError, RuntimeError) as exc:
+            self.add_task_log(task_id, "error", f"Agent setup failed: {exc}")
+            self.mark_task_failed(task_id)
+            return False, "failed"
+
+        self.add_task_log(task_id, "info", f"Agent loop starting — provider={agent.provider} model={agent.model}")
+        self._notify(f"Mneme started agent execution.\nOpen: {self.notifier.task_link(task_id)}".strip(), task_id=task_id)
+
+        success, summary = agent.run(prompt_text)
+
+        if not success:
+            self.add_task_log(task_id, "error", f"Agent loop did not complete: {summary}")
+            self._notify(
+                f"Mneme task failed during agent execution.\nReason: {summary}\nOpen: {self.notifier.task_link(task_id)}".strip(),
+                task_id=task_id,
+                level="error",
+            )
+            self.mark_task_failed(task_id)
+            return False, "failed"
+
+        self.add_task_log(task_id, "info", f"Agent loop completed: {summary}")
+        return True, "ok"
+
     def _run_safe_tests(self, task_id: str, repo_path: Path, profile: dict[str, Any]) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
         commands = profile.get("test_commands", []) or []
@@ -810,17 +871,13 @@ class MnemeWorker:
             likely_files=profile.get("important_files", []),
             test_commands=profile.get("test_commands", []),
         )
+        # Save prompt for audit / legacy CLI fallback
         prompt_path = self._claude_prompt_path(task_id)
         save_markdown(prompt_path, prompt_text)
         self.add_task_log(task_id, "info", f"Claude prompt generated: {prompt_path}")
 
-        claude_ok, claude_state = self._run_claude_code(
-            task_id,
-            repo_path,
-            prompt_path,
-            command_override=project_claude_code_command,
-        )
-        if not claude_ok:
+        agent_ok, _agent_state = self._run_agent_loop(task, repo_path, prompt_text)
+        if not agent_ok:
             return False
 
         test_results = self._run_safe_tests(task_id, repo_path, profile)

@@ -1,0 +1,11 @@
+{
+  "task_id": "task-retry",
+  "command": [
+    "echo",
+    "plans/task-retry.md"
+  ],
+  "exit_code": 0,
+  "success": true,
+  "attempts": 2,
+  "generated_at": "2026-05-10T15:33:58.629785+00:00"
+}

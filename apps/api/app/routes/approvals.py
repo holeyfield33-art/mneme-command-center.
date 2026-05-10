@@ -102,6 +102,24 @@ def approve_approval(
                     f"Open: {task_link}"
                 ).strip()
             )
+
+            # Auto-create GitHub PR if token and repo_url are available
+            if project and project.repo_url and task.branch_name:
+                from ..config import settings
+                from worker.github_client import create_pull_request
+
+                token = settings.github_token
+                if token:
+                    pr_ok, pr_result = create_pull_request(
+                        repo_url=project.repo_url,
+                        token=token,
+                        branch=task.branch_name,
+                        title=f"[Mneme] {task.objective[:72]}",
+                        body=f"Automated changes by Mneme for task `{task.id}`.\n\n**Objective:** {task.objective}",
+                        base_branch=project.default_branch or "main",
+                    )
+                    if pr_ok:
+                        notifier.send(f"GitHub PR created: {pr_result}")
     
     db.commit()
     db.refresh(approval)
