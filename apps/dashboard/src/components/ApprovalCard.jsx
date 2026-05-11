@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 export default function ApprovalCard({ approval, task, onApprove, onReject, onModify }) {
   const [showPreview, setShowPreview] = useState(false)
   const [nowMs, setNowMs] = useState(Date.now())
+  const [activePersona, setActivePersona] = useState('operator')
 
   useEffect(() => {
     const timerId = window.setInterval(() => setNowMs(Date.now()), 30000)
@@ -114,6 +115,45 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
     return { reasons, recommendation }
   }, [confidenceModel, slaState])
 
+  const roleSummary = useMemo(() => {
+    if (activePersona === 'reviewer') {
+      return {
+        title: 'Reviewer Summary',
+        points: [
+          `Validate changed files (${confidenceModel.changedFiles}) against stated objective.`,
+          `Inspect blast radius (${confidenceModel.blastRadius}) before final action.`,
+          slaState.overdue
+            ? 'Prioritize this approval now because its SLA is overdue.'
+            : `Review within SLA window: ${slaState.label}.`,
+        ],
+      }
+    }
+
+    if (activePersona === 'manager') {
+      return {
+        title: 'Manager Summary',
+        points: [
+          `Risk posture is ${String(approval?.risk_level || 'medium').toUpperCase()} with ${confidenceModel.confidenceBand.toLowerCase()} confidence.`,
+          `Expected impact is ${confidenceModel.blastRadius} across ${confidenceModel.changedFiles} file(s).`,
+          slaState.overdue
+            ? 'Escalation suggested: approval is outside SLA.'
+            : 'No escalation required yet; SLA remains active.',
+        ],
+      }
+    }
+
+    return {
+      title: 'Operator Summary',
+      points: [
+        `Primary recommendation: ${decisionBrief.recommendation}.`,
+        `Current confidence: ${confidenceModel.confidence}% (${confidenceModel.confidenceBand}).`,
+        slaState.overdue
+          ? 'Execute triage action immediately (modify or reject until risk drops).'
+          : 'Proceed with normal triage sequence and evidence review.',
+      ],
+    }
+  }, [activePersona, approval, confidenceModel, decisionBrief, slaState])
+
   return (
     <div
       className="mneme-surface mneme-enter"
@@ -184,6 +224,50 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
         <div style={{ marginTop: '0.45rem', fontSize: '0.84rem', color: '#223649' }}>
           <strong>Recommended action:</strong> {decisionBrief.recommendation}
         </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: '0.85rem',
+          padding: '0.85rem',
+          borderRadius: '8px',
+          border: '1px solid #dbe5ee',
+          backgroundColor: '#f8fbff',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+          {[
+            { id: 'operator', label: 'Operator' },
+            { id: 'reviewer', label: 'Reviewer' },
+            { id: 'manager', label: 'Manager' },
+          ].map((persona) => (
+            <button
+              key={persona.id}
+              type="button"
+              onClick={() => setActivePersona(persona.id)}
+              style={{
+                border: '1px solid #c9d4de',
+                borderRadius: '999px',
+                padding: '0.2rem 0.6rem',
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                color: activePersona === persona.id ? 'white' : '#30465c',
+                backgroundColor: activePersona === persona.id ? '#1f7a8c' : 'white',
+              }}
+            >
+              {persona.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: '0.8rem', color: '#5b6a79', marginBottom: '0.3rem' }}>{roleSummary.title}</div>
+        <ul style={{ margin: 0, paddingLeft: '1.1rem', color: '#30465c', fontSize: '0.86rem' }}>
+          {roleSummary.points.map((point, index) => (
+            <li key={`${approval.id}-persona-point-${index}`} style={{ marginBottom: '0.22rem' }}>
+              {point}
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '4px', maxHeight: '300px', overflowY: 'auto' }}>
