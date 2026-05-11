@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { approvals, tasks } from '../api'
+import { useAuth } from '../context/AuthContext'
 import ApprovalCard from '../components/ApprovalCard'
 import ApprovalsAuditTimeline from '../components/ApprovalsAuditTimeline'
 import ApprovalBacklogCorrelation from '../components/ApprovalBacklogCorrelation'
@@ -19,6 +20,7 @@ function isApprovalOverdue(approval) {
 }
 
 export default function Approvals() {
+  const { triggerReauth } = useAuth()
   const [approvalList, setApprovalList] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -149,6 +151,13 @@ export default function Approvals() {
       await approvals.approve(approvalId)
       loadApprovals()
     } catch (err) {
+      if (err?.type === 'reauth_required') {
+        triggerReauth(async () => {
+          await approvals.approve(approvalId)
+          await loadApprovals()
+        })
+        return
+      }
       setError('Failed to approve')
     }
   }
@@ -158,6 +167,13 @@ export default function Approvals() {
       await approvals.reject(approvalId)
       loadApprovals()
     } catch (err) {
+      if (err?.type === 'reauth_required') {
+        triggerReauth(async () => {
+          await approvals.reject(approvalId)
+          await loadApprovals()
+        })
+        return
+      }
       setError('Failed to reject')
     }
   }
@@ -209,6 +225,28 @@ export default function Approvals() {
         )
       )
 
+      const reauthFailure = results.find(
+        (result) => result.status === 'rejected' && result.reason?.type === 'reauth_required'
+      )
+      if (reauthFailure) {
+        triggerReauth(async () => {
+          const retryResults = await Promise.allSettled(
+            selectedApprovalIds.map((approvalId) =>
+              action === 'approve' ? approvals.approve(approvalId) : approvals.reject(approvalId)
+            )
+          )
+          const retrySuccessCount = retryResults.filter((result) => result.status === 'fulfilled').length
+          const retryFailureCount = retryResults.length - retrySuccessCount
+          if (retryFailureCount > 0) {
+            setError(`Bulk ${actionLabel} completed with ${retryFailureCount} failure(s).`)
+          }
+          setInfo(`Bulk ${actionLabel}: ${retrySuccessCount} succeeded${retryFailureCount ? `, ${retryFailureCount} failed` : ''}.`)
+          setSelectedApprovalIds([])
+          await loadApprovals()
+        })
+        return
+      }
+
       const successCount = results.filter((result) => result.status === 'fulfilled').length
       const failureCount = results.length - successCount
 
@@ -246,6 +284,21 @@ export default function Approvals() {
       setModifyDraft({ approvalId: '', reasonCode: 'scope_change', details: '' })
       loadApprovals()
     } catch (err) {
+      if (err?.type === 'reauth_required') {
+        const nextDraft = {
+          approvalId: modifyDraft.approvalId,
+          reasonCode: modifyDraft.reasonCode,
+          details: modifyDraft.details.trim(),
+        }
+        triggerReauth(async () => {
+          await approvals.modify(nextDraft.approvalId, nextDraft.reasonCode, nextDraft.details)
+          setInfo(`Modify request submitted for ${nextDraft.approvalId}: ${nextDraft.reasonCode}`)
+          setError('')
+          setModifyDraft({ approvalId: '', reasonCode: 'scope_change', details: '' })
+          await loadApprovals()
+        })
+        return
+      }
       setError('Failed to submit modify request')
       console.error(err)
     }

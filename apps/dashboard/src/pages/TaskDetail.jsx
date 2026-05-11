@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { approvals, tasks, system } from '../api'
 import { useLayers } from '../context/LayerContext'
+import { useAuth } from '../context/AuthContext'
 
 export default function TaskDetail() {
   const { taskId } = useParams()
   const navigate = useNavigate()
   const { showModal } = useLayers()
+  const { triggerReauth } = useAuth()
   const [task, setTask] = useState(null)
   const [logs, setLogs] = useState([])
   const [taskApprovals, setTaskApprovals] = useState([])
@@ -65,6 +67,17 @@ export default function TaskDetail() {
       }
       await loadTask()
     } catch (err) {
+      if (err?.type === 'reauth_required') {
+        triggerReauth(async () => {
+          if (decision === 'approve') {
+            await approvals.approve(approvalId)
+          } else {
+            await approvals.reject(approvalId)
+          }
+          await loadTask()
+        })
+        return
+      }
       setError(err?.response?.data?.detail || `Failed to ${decision} diff review`)
     } finally {
       setDiffDecisionLoading(false)
