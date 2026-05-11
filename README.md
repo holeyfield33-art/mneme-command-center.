@@ -181,6 +181,20 @@ set -a && source .env && set +a
 MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /workspaces/mneme-command-center./.venv/bin/python -m pytest -v
 ```
 
+## CI Pipeline (Phase 11)
+
+GitHub Actions workflow: `.github/workflows/ci.yml`
+
+Current jobs:
+
+- `backend-tests`: installs API/worker deps and runs `pytest -q`
+- `frontend-build`: runs `npm ci` + `npm run build` in dashboard
+- `live-api-integration`: boots API, waits for `/health`, then runs live integration tests with:
+  - `MNEME_RUN_LIVE_TESTS=1`
+  - `MNEME_RUN_WORKER_TESTS=1`
+
+This catches regressions where unit tests pass but runtime/API startup paths fail in CI.
+
 ## Notes
 
 - Dashboard UI harness tests are intentionally skipped in pytest (`test_dashboard_dependent_checks_are_skipped`) and require dedicated UI automation if desired.
