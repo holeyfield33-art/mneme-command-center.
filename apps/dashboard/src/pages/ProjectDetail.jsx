@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { projects, tasks } from '../api'
 import TaskForm from '../components/TaskForm'
+import TaskDependencyGraph from '../components/TaskDependencyGraph'
 
 const PROVIDER_MODELS = {
   anthropic: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-3-5-haiku-20241022'],
@@ -211,6 +212,8 @@ export default function ProjectDetail() {
           </p>
         </div>
       </div>
+
+      <TaskDependencyGraph tasks={taskList} />
 
       <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>Tasks ({taskList.length})</h2>

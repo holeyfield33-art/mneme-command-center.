@@ -49,6 +49,18 @@ Mneme lets you:
 
 ## Quick Start
 
+### 0. Initialize Environment Files
+```bash
+cd /workspaces/mneme-command-center.
+./env/init.sh
+```
+
+This creates editable files:
+- `.env`
+- `apps/dashboard/.env.local`
+
+Set your secrets and provider variables there before starting services.
+
 ### 1. Backend
 ```bash
 cd apps/api
@@ -70,11 +82,12 @@ Access at: `http://localhost:5173` (or `http://<laptop-ip>:5173` from phone)
 
 ### 3. Worker
 ```bash
-cd worker
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python main.py
+cd /path/to/mneme-command-center
+python3 -m venv worker/venv
+source worker/venv/bin/activate
+pip install -r worker/requirements.txt
+set -a && source .env && set +a
+python -m worker.main
 ```
 
 ## Acceptance Criteria - All Met! ✓
@@ -117,6 +130,8 @@ python main.py
 ## Full Documentation
 
 See detailed setup, API reference, database schema, and troubleshooting in [docs/SETUP.md](docs/SETUP.md)
+
+For a complete install + run playbook (including env folder usage and verification), see [docs/INSTALL_AND_RUN_MANUAL.md](docs/INSTALL_AND_RUN_MANUAL.md).
 
 ## Testing
 
