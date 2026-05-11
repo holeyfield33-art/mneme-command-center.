@@ -13,7 +13,7 @@ approved plan
 ```
 
 ## Repo Profile Summary
-- Repo path: /tmp/pytest-of-codespace/pytest-9/test_execution_creates_diff_re0/repo
+- Repo path: /tmp/pytest-of-codespace/pytest-10/test_execution_creates_diff_re0/repo
 - Stack: python
 - Branch: main
 - Dirty: False
