@@ -30,6 +30,24 @@ apiClient.interceptors.response.use(
   }
 )
 
+const isReauthChallenge = (error) => {
+  if (error?.response?.status !== 403) return false
+  const body = error?.response?.data
+  const raw = typeof body === 'string' ? body : JSON.stringify(body || {})
+  return /reauth/i.test(raw)
+}
+
+const withReauthChallenge = async (requestFn) => {
+  try {
+    return await requestFn()
+  } catch (error) {
+    if (isReauthChallenge(error)) {
+      throw Object.assign(new Error('reauth_required'), { type: 'reauth_required' })
+    }
+    throw error
+  }
+}
+
 export const auth = {
   login: (password) => apiClient.post('/auth/login', { password })
 }
@@ -105,12 +123,12 @@ export const approvals = {
     if (params.toString()) url += `?${params.toString()}`
     return apiClient.get(url)
   },
-  approve: (id) => apiClient.post(`/approvals/${id}/approve`),
-  reject: (id) => apiClient.post(`/approvals/${id}/reject`),
-  modify: (id, reasonCode, details) => apiClient.post(`/approvals/${id}/modify`, {
+  approve: (id) => withReauthChallenge(() => apiClient.post(`/approvals/${id}/approve`)),
+  reject: (id) => withReauthChallenge(() => apiClient.post(`/approvals/${id}/reject`)),
+  modify: (id, reasonCode, details) => withReauthChallenge(() => apiClient.post(`/approvals/${id}/modify`, {
     reason_code: reasonCode,
     details,
-  })
+  }))
 }
 
 export const worker = {

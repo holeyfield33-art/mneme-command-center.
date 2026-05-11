@@ -17,6 +17,114 @@ import WorkflowCanvas from './components/WorkflowCanvas'
 import ControlRoom from './components/ControlRoom'
 import GlobalErrorBoundary from './components/GlobalErrorBoundary'
 
+function ReauthModal() {
+  const { reauth, completeReauth, cancelReauth } = useAuth()
+  const [password, setPassword] = React.useState('')
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState('')
+
+  React.useEffect(() => {
+    if (reauth.required) {
+      setPassword('')
+      setError('')
+      setLoading(false)
+    }
+  }, [reauth.required])
+
+  if (!reauth.required) {
+    return null
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      await completeReauth(password)
+      setPassword('')
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Identity confirmation failed. Check password and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.45)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1700,
+        padding: '1rem',
+      }}
+    >
+      <div className="mneme-surface mneme-enter" style={{ width: 'min(520px, 100%)', padding: '1rem 1.1rem' }}>
+        <h3 style={{ marginTop: 0, marginBottom: '0.4rem' }}>Reauthenticate To Continue</h3>
+        <p style={{ marginTop: 0, color: '#526170', fontSize: '0.92rem' }}>
+          This approval action requires identity confirmation before continuing.
+        </p>
+        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '0.65rem' }}>
+          <label htmlFor="reauth-password" style={{ fontSize: '0.88rem', fontWeight: 600 }}>
+            Admin Password
+          </label>
+          <input
+            id="reauth-password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoFocus
+            required
+            disabled={loading}
+            style={{
+              padding: '0.55rem 0.7rem',
+              borderRadius: '6px',
+              border: '1px solid #c9d4de',
+              fontSize: '0.95rem',
+            }}
+          />
+          {error && <div className="mneme-alert error" style={{ margin: 0 }}>{error}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.55rem' }}>
+            <button
+              type="button"
+              onClick={cancelReauth}
+              disabled={loading}
+              style={{
+                padding: '0.45rem 0.85rem',
+                borderRadius: '6px',
+                border: '1px solid #c9d4de',
+                backgroundColor: 'white',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                padding: '0.45rem 0.85rem',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: '#2f9e6f',
+                color: 'white',
+                cursor: 'pointer',
+                fontWeight: 700,
+              }}
+            >
+              {loading ? 'Confirming...' : 'Confirm Identity'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function Layout({ children }) {
   const navigate = useNavigate()
   const { isAuthenticated, logout } = useAuth()
@@ -89,6 +197,7 @@ function Layout({ children }) {
       <WorkflowCanvas />
       {/* Layer 3: Control Room Modal */}
       <ControlRoom />
+      <ReauthModal />
     </div>
   )
 }
