@@ -610,6 +610,11 @@ class MnemeWorker:
         def log_fn(level: str, message: str) -> None:
             self.add_task_log(task_id, level, message)
 
+        # Orchestration gate: if ENABLE_ORCHESTRATION is set, run 4-phase orchestrated loop
+        enable_orchestration = os.getenv("ENABLE_ORCHESTRATION", "false").strip().lower() == "true"
+        if enable_orchestration:
+            return self._run_orchestrated_agent(task_id, repo_path, prompt_text, log_fn)
+
         try:
             agent = build_agent_loop(
                 project_provider=project_provider,
@@ -640,6 +645,50 @@ class MnemeWorker:
             return False, "failed"
 
         self.add_task_log(task_id, "info", f"Agent loop completed: {summary}")
+        return True, "ok"
+
+    def _run_orchestrated_agent(
+        self,
+        task_id: str,
+        repo_path: Path,
+        prompt_text: str,
+        log_fn: Any,
+    ) -> tuple[bool, str]:
+        """Run the 4-phase orchestrated agent loop via AgentOrchestrator."""
+        try:
+            from apps.api.app.services.orchestration import AgentOrchestrator  # type: ignore[import]
+            from apps.api.app.database import SessionLocal  # type: ignore[import]
+        except ImportError as exc:
+            self.add_task_log(task_id, "error", f"Orchestration import failed: {exc}")
+            self.mark_task_failed(task_id)
+            return False, "failed"
+
+        self.add_task_log(task_id, "info", "Starting 4-phase orchestrated agent execution.")
+        self._notify(
+            f"Mneme started orchestrated execution (4-phase).\nOpen: {self.notifier.task_link(task_id)}".strip(),
+            task_id=task_id,
+        )
+
+        db = SessionLocal()
+        try:
+            orchestrator = AgentOrchestrator(task_id=task_id, db=db)
+            orchestrator.initialize_workflow()
+            final_summary = orchestrator.run_all_phases(repo_path, prompt_text)
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            self.add_task_log(task_id, "error", f"Orchestrated agent failed: {exc}")
+            self._notify(
+                f"Mneme orchestrated task failed.\nReason: {exc}\nOpen: {self.notifier.task_link(task_id)}".strip(),
+                task_id=task_id,
+                level="error",
+            )
+            self.mark_task_failed(task_id)
+            return False, "failed"
+        finally:
+            db.close()
+
+        self.add_task_log(task_id, "info", f"Orchestrated agent completed: {final_summary}")
         return True, "ok"
 
     def _run_safe_tests(self, task_id: str, repo_path: Path, profile: dict[str, Any]) -> list[dict[str, Any]]:

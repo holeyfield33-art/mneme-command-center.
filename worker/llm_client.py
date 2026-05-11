@@ -618,8 +618,10 @@ class AgentLoop:
         log_fn: Callable[[str, str], None] | None = None,
         *,
         ollama_base_url: str = "http://localhost:11434",
+        prior_phase_context: str | None = None,
     ):
         self.active_skills: list[dict] = []
+        self.prior_phase_context = prior_phase_context
         self.repo_path = repo_path
         self.max_iterations = max_iterations
         self.log_fn = log_fn or (lambda level, msg: print(f"[{level.upper()}] {msg}"))
@@ -678,6 +680,8 @@ class AgentLoop:
             self._safe_log("info", f"Agent budget: ${budget_usd:.4f}")
 
         system = SYSTEM_PROMPT
+        if self.prior_phase_context:
+            system = system + f"\n\n## Context from prior phase\n{self.prior_phase_context}"
         if self.active_skills:
             skill_block = "\n".join(f"- {s['name']}: {s.get('description', '')}" for s in self.active_skills)
             system = system + f"\n\nActive skills available to you:\n{skill_block}"
