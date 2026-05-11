@@ -120,8 +120,8 @@ export default function ApprovalHub({ onApprovalResolved = () => {} }) {
         position: 'fixed',
         bottom: '2rem',
         right: '2rem',
-        backgroundColor: '#2ecc71',
-        color: 'white',
+        backgroundColor: 'var(--mneme-success)',
+        color: 'var(--mneme-surface)',
         padding: '0.75rem 1rem',
         borderRadius: '0.5rem',
         fontSize: '0.875rem',
@@ -154,10 +154,10 @@ export default function ApprovalHub({ onApprovalResolved = () => {} }) {
       bottom: 0,
       left: 0,
       right: 0,
-      backgroundColor: '#2c3e50',
-      color: 'white',
+      backgroundColor: 'var(--mneme-surface)',
+      color: 'var(--mneme-ink)',
       borderTop: `4px solid ${getRiskColor(currentApproval.risk_level)}`,
-      boxShadow: '0 -4px 12px rgba(0,0,0,0.15)',
+      boxShadow: 'var(--mneme-shadow-md)',
       zIndex: 9999,
       transform: isMinimized ? 'translateY(calc(100% - 3rem))' : 'translateY(0)',
       transition: 'transform 0.3s ease',
@@ -170,7 +170,7 @@ export default function ApprovalHub({ onApprovalResolved = () => {} }) {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        borderBottom: '1px solid #34495e',
+        borderBottom: '1px solid var(--mneme-border)',
         cursor: 'pointer',
         backgroundColor: getRiskColor(currentApproval.risk_level)
       }}>
@@ -190,7 +190,7 @@ export default function ApprovalHub({ onApprovalResolved = () => {} }) {
           style={{
             background: 'none',
             border: 'none',
-            color: 'white',
+            color: 'var(--mneme-surface)',
             fontSize: '1.5rem',
             cursor: 'pointer',
             padding: 0
@@ -205,8 +205,8 @@ export default function ApprovalHub({ onApprovalResolved = () => {} }) {
           {/* Error message */}
           {error && (
             <div style={{
-              backgroundColor: '#e74c3c',
-              color: 'white',
+              backgroundColor: 'var(--mneme-danger)',
+              color: 'var(--mneme-surface)',
               padding: '0.75rem',
               borderRadius: '0.25rem',
               marginBottom: '1rem',
@@ -233,7 +233,7 @@ export default function ApprovalHub({ onApprovalResolved = () => {} }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
                   {currentApproval.estimated_cost && (
                     <div style={{
-                      backgroundColor: '#34495e',
+                      backgroundColor: 'var(--mneme-brand-soft)',
                       padding: '0.75rem',
                       borderRadius: '0.25rem'
                     }}>
@@ -245,7 +245,7 @@ export default function ApprovalHub({ onApprovalResolved = () => {} }) {
                   )}
                   {currentApproval.blast_radius && (
                     <div style={{
-                      backgroundColor: '#34495e',
+                      backgroundColor: 'var(--mneme-brand-soft)',
                       padding: '0.75rem',
                       borderRadius: '0.25rem'
                     }}>
@@ -260,7 +260,7 @@ export default function ApprovalHub({ onApprovalResolved = () => {} }) {
                 {/* Context details */}
                 {currentApproval.context && (
                   <div style={{
-                    backgroundColor: '#1a252f',
+                    backgroundColor: 'var(--mneme-brand-soft)',
                     padding: '0.75rem',
                     borderRadius: '0.25rem',
                     marginTop: '1rem',
@@ -287,48 +287,24 @@ export default function ApprovalHub({ onApprovalResolved = () => {} }) {
                 <button
                   onClick={handleReject}
                   disabled={actionLoading}
-                  style={{
-                    padding: '0.75rem 1rem',
-                    backgroundColor: '#e74c3c',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '0.25rem',
-                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                    fontWeight: 'bold',
-                    opacity: actionLoading ? 0.6 : 1
-                  }}
+                  className="mneme-btn mneme-btn-danger"
+                  style={{ justifyContent: 'center', opacity: actionLoading ? 0.6 : 1 }}
                 >
                   {actionLoading ? '...' : 'Reject'}
                 </button>
                 <button
                   onClick={() => setModifyMode(true)}
                   disabled={actionLoading}
-                  style={{
-                    padding: '0.75rem 1rem',
-                    backgroundColor: '#f39c12',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '0.25rem',
-                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                    fontWeight: 'bold',
-                    opacity: actionLoading ? 0.6 : 1
-                  }}
+                  className="mneme-btn"
+                  style={{ justifyContent: 'center', backgroundColor: 'var(--mneme-warning)', color: 'var(--mneme-surface)', opacity: actionLoading ? 0.6 : 1 }}
                 >
                   {actionLoading ? '...' : 'Modify'}
                 </button>
                 <button
                   onClick={handleApprove}
                   disabled={actionLoading}
-                  style={{
-                    padding: '0.75rem 1rem',
-                    backgroundColor: '#27ae60',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '0.25rem',
-                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                    fontWeight: 'bold',
-                    opacity: actionLoading ? 0.6 : 1
-                  }}
+                  className="mneme-btn"
+                  style={{ justifyContent: 'center', backgroundColor: 'var(--mneme-success)', color: 'var(--mneme-surface)', opacity: actionLoading ? 0.6 : 1 }}
                 >
                   {actionLoading ? '...' : 'Approve'}
                 </button>

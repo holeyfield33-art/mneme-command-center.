@@ -81,10 +81,18 @@ export default function TaskForm({ onSubmit, onCancel, isSubmitting }) {
     onSubmit(payload)
   }
 
-  const inputStyle = { width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }
+  const inputStyle = {
+    width: '100%',
+    padding: '0.75rem',
+    border: '1px solid var(--mneme-border)',
+    borderRadius: '6px',
+    boxSizing: 'border-box',
+    backgroundColor: 'var(--mneme-surface)',
+    color: 'var(--mneme-ink)'
+  }
 
   return (
-    <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
+    <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: 'var(--mneme-surface)', borderRadius: '10px', border: '1px solid var(--mneme-border)' }}>
       <form onSubmit={handleSubmit}>
 
         <div style={{ marginBottom: '1rem' }}>
@@ -116,8 +124,8 @@ export default function TaskForm({ onSubmit, onCancel, isSubmitting }) {
               disabled={!SpeechRecognition || isListening}
               title={SpeechRecognition ? 'Tap to speak' : 'Speech recognition unavailable in this browser'}
               style={{
-                minWidth: '48px', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px',
-                backgroundColor: isListening ? '#e7f3ff' : '#fff',
+                minWidth: '48px', padding: '0.75rem', border: '1px solid var(--mneme-border)', borderRadius: '6px',
+                backgroundColor: isListening ? 'var(--mneme-accent-soft)' : 'var(--mneme-surface)',
                 cursor: SpeechRecognition ? 'pointer' : 'not-allowed',
                 opacity: SpeechRecognition ? 1 : 0.65, fontSize: '1.1rem',
               }}
@@ -126,7 +134,7 @@ export default function TaskForm({ onSubmit, onCancel, isSubmitting }) {
             </button>
           </div>
           {!SpeechRecognition && (
-            <div style={{ marginTop: '0.5rem', color: '#777', fontSize: '0.9rem' }}>Tap microphone, speak your task</div>
+            <div style={{ marginTop: '0.5rem', color: 'var(--mneme-muted)', fontSize: '0.9rem' }}>Tap microphone, speak your task</div>
           )}
         </div>
 
@@ -151,7 +159,7 @@ export default function TaskForm({ onSubmit, onCancel, isSubmitting }) {
         <div style={{ marginBottom: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '0.25rem' }}>
-              Model Provider <span style={{ color: '#777', fontSize: '0.85rem' }}>(optional)</span>
+              Model Provider <span style={{ color: 'var(--mneme-muted)', fontSize: '0.85rem' }}>(optional)</span>
             </label>
             <select value={formData.model_provider} onChange={(e) => setField('model_provider', e.target.value)} style={inputStyle}>
               <option value="">Project default</option>
@@ -163,7 +171,7 @@ export default function TaskForm({ onSubmit, onCancel, isSubmitting }) {
           </div>
           <div>
             <label style={{ display: 'block', marginBottom: '0.25rem' }}>
-              Model Name <span style={{ color: '#777', fontSize: '0.85rem' }}>(optional)</span>
+              Model Name <span style={{ color: 'var(--mneme-muted)', fontSize: '0.85rem' }}>(optional)</span>
             </label>
             <input
               type="text"
@@ -182,14 +190,10 @@ export default function TaskForm({ onSubmit, onCancel, isSubmitting }) {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button type="submit" disabled={isSubmitting}
-            style={{ padding: '0.75rem 1.5rem', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
+          <button type="submit" disabled={isSubmitting} className="mneme-btn mneme-btn-primary">
             {isSubmitting ? 'Creating...' : 'Create Task'}
           </button>
-          <button type="button" onClick={onCancel}
-            style={{ padding: '0.75rem 1.5rem', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
+          <button type="button" onClick={onCancel} className="mneme-btn mneme-btn-ghost">
             Cancel
           </button>
         </div>

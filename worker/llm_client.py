@@ -132,6 +132,33 @@ _BASH_ALLOWLIST_RE = re.compile(
 _BLOCKED_SHELL_TOKENS = (";", "&&", "||", "`", "$(", ">", "<")
 
 
+def _redact_secrets(text: str, extra_secrets: list[str] | None = None) -> str:
+    """Best-effort redaction for API keys and bearer tokens in logs."""
+    redacted = text or ""
+
+    known_secrets = [
+        os.getenv("ANTHROPIC_API_KEY", ""),
+        os.getenv("OPENAI_API_KEY", ""),
+        os.getenv("GOOGLE_API_KEY", ""),
+        os.getenv("OLLAMA_API_KEY", ""),
+        os.getenv("GITHUB_TOKEN", ""),
+        os.getenv("MNEME_SECRET_KEY", ""),
+    ]
+    if extra_secrets:
+        known_secrets.extend(extra_secrets)
+
+    for secret in known_secrets:
+        if secret:
+            redacted = redacted.replace(secret, "[REDACTED]")
+
+    # Generic token formats
+    redacted = re.sub(r"\bsk-[A-Za-z0-9\-_]+\b", "[REDACTED_OPENAI_KEY]", redacted)
+    redacted = re.sub(r"\bhk-[A-Za-z0-9\-_]+\b", "[REDACTED_ANTHROPIC_KEY]", redacted)
+    redacted = re.sub(r"(?i)(authorization\s*[:=]\s*bearer\s+)[^\s,;]+", r"\1[REDACTED]", redacted)
+
+    return redacted
+
+
 def _is_safe_bash(command: str) -> bool:
     cmd = command.strip()
     if not cmd:
@@ -507,6 +534,7 @@ class _OllamaAdapter:
             raise RuntimeError("httpx package not installed. Run: pip install httpx")
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.api_key = os.getenv("OLLAMA_API_KEY", "").strip()
 
     def _convert_tools(self) -> list[dict]:
         return [
@@ -522,9 +550,13 @@ class _OllamaAdapter:
             "tools": self._convert_tools(),
             "stream": False,
         }
+        headers: dict[str, str] = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         response = self._httpx.post(
             f"{self.base_url}/api/chat",
             json=payload,
+            headers=headers or None,
             timeout=120,
         )
         response.raise_for_status()
@@ -591,6 +623,7 @@ class AgentLoop:
         self.repo_path = repo_path
         self.max_iterations = max_iterations
         self.log_fn = log_fn or (lambda level, msg: print(f"[{level.upper()}] {msg}"))
+        self._extra_secrets = [api_key]
         self.executor = ToolExecutor(repo_path, timeout=bash_timeout)
 
         provider = provider.lower()
@@ -607,6 +640,9 @@ class AgentLoop:
 
         self.provider = provider
         self.model = model
+
+    def _safe_log(self, level: str, message: str) -> None:
+        self.log_fn(level, _redact_secrets(message, self._extra_secrets))
 
     # Cost table: (input_$/1k, output_$/1k)
     _COST_TABLE: dict[str, tuple[float, float]] = {
@@ -639,40 +675,41 @@ class AgentLoop:
 
         budget_usd = float(os.getenv("AGENT_BUDGET_USD", "0"))
         if budget_usd > 0:
-            self.log_fn("info", f"Agent budget: ${budget_usd:.4f}")
+            self._safe_log("info", f"Agent budget: ${budget_usd:.4f}")
 
         system = SYSTEM_PROMPT
         if self.active_skills:
             skill_block = "\n".join(f"- {s['name']}: {s.get('description', '')}" for s in self.active_skills)
             system = system + f"\n\nActive skills available to you:\n{skill_block}"
 
-        self.log_fn("info", f"Agent loop starting — provider={self.provider} model={self.model}")
+        self._safe_log("info", f"Agent loop starting — provider={self.provider} model={self.model}")
         messages: list[dict] = [{"role": "user", "content": task_prompt}]
 
         for iteration in range(1, self.max_iterations + 1):
-            self.log_fn("info", f"Agent iteration {iteration}/{self.max_iterations}")
+            self._safe_log("info", f"Agent iteration {iteration}/{self.max_iterations}")
 
             try:
                 text, tool_calls = self.adapter.call(messages, system)
             except Exception as exc:
-                self.log_fn("error", f"LLM call failed: {exc}")
-                return False, str(exc)
+                sanitized = _redact_secrets(str(exc), self._extra_secrets)
+                self._safe_log("error", f"LLM call failed: {sanitized}")
+                return False, sanitized
 
             prompt_approx = sum(self._estimate_tokens(str(m.get("content", ""))) for m in messages)
             completion_approx = self._estimate_tokens(text or "")
             self._record_cost(prompt_approx, completion_approx)
 
             if budget_usd > 0 and self.total_cost_usd > budget_usd:
-                self.log_fn("warning", f"Budget exceeded: ${self.total_cost_usd:.4f} > ${budget_usd:.4f}. Stopping.")
+                self._safe_log("warning", f"Budget exceeded: ${self.total_cost_usd:.4f} > ${budget_usd:.4f}. Stopping.")
                 return False, f"Agent stopped: budget ${budget_usd:.4f} exceeded (${self.total_cost_usd:.4f} used)"
 
             if text:
-                self.log_fn("info", f"Model: {text[:1000]}")
+                self._safe_log("info", f"Model: {text[:1000]}")
 
             if not tool_calls:
                 if text:
                     return True, text
-                self.log_fn("warning", "Model returned no tool calls and no text; stopping.")
+                self._safe_log("warning", "Model returned no tool calls and no text; stopping.")
                 return False, "Model produced no output."
 
             messages.append(self.adapter.assistant_message(text, tool_calls))
@@ -680,10 +717,10 @@ class AgentLoop:
             for tc in tool_calls:
                 tool_name = tc["name"]
                 tool_input = tc["input"]
-                self.log_fn("info", f"Tool call: {tool_name}({json.dumps(tool_input)[:300]})")
+                self._safe_log("info", f"Tool call: {tool_name}({json.dumps(tool_input)[:300]})")
 
                 result = self.executor.execute(tool_name, tool_input)
-                self.log_fn("info", f"Tool result ({tool_name}): {result[:500]}")
+                self._safe_log("info", f"Tool result ({tool_name}): {result[:500]}")
 
                 messages.append(
                     self.adapter.tool_result_message(tc["id"], tool_name, result)
@@ -695,12 +732,12 @@ class AgentLoop:
                     summary = parsed.get("summary", "")
                     success = status == "done"
                     level = "info" if success else "warning"
-                    self.log_fn(level, f"Task complete — status={status}: {summary}")
-                    self.log_fn("info", f"Cost summary: prompt_tokens={self.total_prompt_tokens} completion_tokens={self.total_completion_tokens} estimated_cost=${self.total_cost_usd:.6f}")
+                    self._safe_log(level, f"Task complete — status={status}: {summary}")
+                    self._safe_log("info", f"Cost summary: prompt_tokens={self.total_prompt_tokens} completion_tokens={self.total_completion_tokens} estimated_cost=${self.total_cost_usd:.6f}")
                     return success, summary
 
-        self.log_fn("warning", f"Agent loop reached max iterations ({self.max_iterations})")
-        self.log_fn("info", f"Cost summary: prompt_tokens={self.total_prompt_tokens} completion_tokens={self.total_completion_tokens} estimated_cost=${self.total_cost_usd:.6f}")
+        self._safe_log("warning", f"Agent loop reached max iterations ({self.max_iterations})")
+        self._safe_log("info", f"Cost summary: prompt_tokens={self.total_prompt_tokens} completion_tokens={self.total_completion_tokens} estimated_cost=${self.total_cost_usd:.6f}")
         return False, f"Agent did not complete within {self.max_iterations} iterations."
 
 

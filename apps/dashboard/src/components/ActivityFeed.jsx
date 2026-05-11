@@ -117,11 +117,11 @@ export default function ActivityFeed() {
       top: '0.5rem',
       bottom: '24rem',
       width: layer.minimized ? '3rem' : '24rem',
-      backgroundColor: '#2c3e50',
-      color: 'white',
-      borderRight: '1px solid #34495e',
+      backgroundColor: 'var(--mneme-surface)',
+      color: 'var(--mneme-ink)',
+      borderRight: '1px solid var(--mneme-border)',
       borderRadius: '0 0.5rem 0.5rem 0',
-      boxShadow: '2px 2px 8px rgba(0,0,0,0.15)',
+      boxShadow: 'var(--mneme-shadow-md)',
       zIndex: 9998,
       transform: `translateX(${layer.minimized ? 'calc(-100% + 3rem)' : '0'})`,
       transition: 'transform 0.3s ease, width 0.3s ease',
@@ -132,12 +132,12 @@ export default function ActivityFeed() {
       {/* Minimizable header */}
       <div style={{
         padding: '0.75rem',
-        borderBottom: '1px solid #34495e',
+        borderBottom: '1px solid var(--mneme-border)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         cursor: 'pointer',
-        backgroundColor: '#1a252f',
+        backgroundColor: 'var(--mneme-brand-soft)',
         flexShrink: 0
       }}>
         <div style={{ display: layer.minimized ? 'none' : 'block' }}>
@@ -150,14 +150,8 @@ export default function ActivityFeed() {
         </div>
         <button
           onClick={() => toggleMinimize('layer1')}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'white',
-            fontSize: '1rem',
-            cursor: 'pointer',
-            padding: '0.25rem 0.5rem'
-          }}
+          className="mneme-btn mneme-btn-ghost"
+          style={{ fontSize: '1rem', padding: '0.25rem 0.5rem' }}
         >
           {layer.minimized ? '◀' : '▶'}
         </button>
@@ -172,7 +166,7 @@ export default function ActivityFeed() {
         padding: '0.5rem 0'
       }}>
         {error ? (
-          <div style={{ padding: '1rem', color: '#ffb3b3', textAlign: 'left' }}>
+          <div style={{ padding: '1rem', color: 'var(--mneme-danger)', textAlign: 'left' }}>
             <div style={{ fontWeight: 700, marginBottom: '0.35rem' }}>Offline / Error</div>
             <div style={{ opacity: 0.9, marginBottom: '0.45rem' }}>{error}</div>
             <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>
@@ -193,14 +187,14 @@ export default function ActivityFeed() {
               key={event.id || idx}
               style={{
                 padding: '0.6rem 0.75rem',
-                borderBottom: '1px solid #34495e',
+                borderBottom: '1px solid var(--mneme-border)',
                 opacity: idx === 0 ? 1 : 0.8,
                 cursor: 'pointer',
                 transition: 'background-color 0.2s',
-                ':hover': { backgroundColor: '#34495e' }
+                ':hover': { backgroundColor: 'var(--mneme-brand-soft)' }
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#34495e'
+                e.currentTarget.style.backgroundColor = 'var(--mneme-brand-soft)'
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = 'transparent'
