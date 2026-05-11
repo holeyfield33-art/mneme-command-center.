@@ -23,7 +23,7 @@ from ..models import (
     OrchestrationOperation,
 )
 from ..security.transactions import TransactionWrapper, TransactionState
-from ..database import db as default_db
+from ..database import SessionLocal
 
 
 class AgentOrchestrator:
@@ -58,7 +58,7 @@ class AgentOrchestrator:
     
     def __init__(self, task_id: str, db: Optional[Session] = None):
         self.task_id = task_id
-        self.db = db or default_db
+        self.db = db or SessionLocal()
         self.transaction: Optional[TransactionWrapper] = None
         self.phases: Dict[AgentPhaseType, AgentPhase] = {}
     
