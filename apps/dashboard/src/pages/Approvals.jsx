@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { approvals, tasks } from '../api'
 import ApprovalCard from '../components/ApprovalCard'
 
@@ -20,6 +20,37 @@ export default function Approvals() {
     { value: 'risk_reduction', label: 'Risk reduction required' },
     { value: 'rollback_plan', label: 'Rollback plan unclear' },
   ]
+
+  const sortedApprovals = useMemo(() => {
+    const riskRank = { high: 3, medium: 2, low: 1 }
+    return [...approvalList].sort((a, b) => {
+      const riskA = riskRank[(a?.risk_level || 'medium').toLowerCase()] || 0
+      const riskB = riskRank[(b?.risk_level || 'medium').toLowerCase()] || 0
+      if (riskA !== riskB) return riskB - riskA
+
+      const createdA = a?.created_at ? new Date(a.created_at).getTime() : 0
+      const createdB = b?.created_at ? new Date(b.created_at).getTime() : 0
+      return createdA - createdB
+    })
+  }, [approvalList])
+
+  const queueSummary = useMemo(() => {
+    const summary = {
+      total: approvalList.length,
+      highRisk: 0,
+      mediumRisk: 0,
+      lowRisk: 0,
+    }
+
+    approvalList.forEach((approval) => {
+      const risk = (approval?.risk_level || 'medium').toLowerCase()
+      if (risk === 'high') summary.highRisk += 1
+      else if (risk === 'low') summary.lowRisk += 1
+      else summary.mediumRisk += 1
+    })
+
+    return summary
+  }, [approvalList])
 
   const loadApprovals = useCallback(async () => {
     try {
@@ -134,7 +165,28 @@ export default function Approvals() {
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '1.5rem' }}>
-          {approvalList.map(approval => {
+          <div className="mneme-surface mneme-enter" style={{ padding: '0.9rem 1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))', gap: '0.75rem' }}>
+              <div>
+                <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>Pending</div>
+                <div style={{ fontWeight: 700, color: '#223649' }}>{queueSummary.total}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>High Risk</div>
+                <div style={{ fontWeight: 700, color: '#c44236' }}>{queueSummary.highRisk}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>Medium Risk</div>
+                <div style={{ fontWeight: 700, color: '#d9822b' }}>{queueSummary.mediumRisk}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>Low Risk</div>
+                <div style={{ fontWeight: 700, color: '#2f9e6f' }}>{queueSummary.lowRisk}</div>
+              </div>
+            </div>
+          </div>
+
+          {sortedApprovals.map(approval => {
             const task = taskDetails[approval.task_id]
             return (
               <ApprovalCard
