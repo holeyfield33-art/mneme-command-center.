@@ -15,6 +15,7 @@ import ApprovalHub from './components/ApprovalHub'
 import ActivityFeed from './components/ActivityFeed'
 import WorkflowCanvas from './components/WorkflowCanvas'
 import ControlRoom from './components/ControlRoom'
+import GlobalErrorBoundary from './components/GlobalErrorBoundary'
 
 function Layout({ children }) {
   const navigate = useNavigate()
@@ -109,81 +110,83 @@ export default function App() {
   return (
     <AuthProvider>
       <LayerProvider>
-        <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/"
-            element={
-              <Layout>
-                <ProtectedRoute>
-                  <Home />
-                </ProtectedRoute>
-              </Layout>
-            }
-          />
-          <Route
-            path="/projects"
-            element={
-              <Layout>
-                <ProtectedRoute>
-                  <Projects />
-                </ProtectedRoute>
-              </Layout>
-            }
-          />
-          <Route
-            path="/project/:projectId"
-            element={
-              <Layout>
-                <ProtectedRoute>
-                  <ProjectDetail />
-                </ProtectedRoute>
-              </Layout>
-            }
-          />
-          <Route
-            path="/task/:taskId"
-            element={
-              <Layout>
-                <ProtectedRoute>
-                  <TaskDetail />
-                </ProtectedRoute>
-              </Layout>
-            }
-          />
-          <Route
-            path="/approvals"
-            element={
-              <Layout>
-                <ProtectedRoute>
-                  <Approvals />
-                </ProtectedRoute>
-              </Layout>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <Layout>
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              </Layout>
-            }
-          />
-          <Route
-            path="/setup"
-            element={
-              <Layout>
-                <ProtectedRoute>
-                  <SetupWizard />
-                </ProtectedRoute>
-              </Layout>
-            }
-          />
-        </Routes>
-        </BrowserRouter>
+        <GlobalErrorBoundary>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route
+                path="/"
+                element={
+                  <Layout>
+                    <ProtectedRoute>
+                      <Home />
+                    </ProtectedRoute>
+                  </Layout>
+                }
+              />
+              <Route
+                path="/projects"
+                element={
+                  <Layout>
+                    <ProtectedRoute>
+                      <Projects />
+                    </ProtectedRoute>
+                  </Layout>
+                }
+              />
+              <Route
+                path="/project/:projectId"
+                element={
+                  <Layout>
+                    <ProtectedRoute>
+                      <ProjectDetail />
+                    </ProtectedRoute>
+                  </Layout>
+                }
+              />
+              <Route
+                path="/task/:taskId"
+                element={
+                  <Layout>
+                    <ProtectedRoute>
+                      <TaskDetail />
+                    </ProtectedRoute>
+                  </Layout>
+                }
+              />
+              <Route
+                path="/approvals"
+                element={
+                  <Layout>
+                    <ProtectedRoute>
+                      <Approvals />
+                    </ProtectedRoute>
+                  </Layout>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <Layout>
+                    <ProtectedRoute>
+                      <Settings />
+                    </ProtectedRoute>
+                  </Layout>
+                }
+              />
+              <Route
+                path="/setup"
+                element={
+                  <Layout>
+                    <ProtectedRoute>
+                      <SetupWizard />
+                    </ProtectedRoute>
+                  </Layout>
+                }
+              />
+            </Routes>
+          </BrowserRouter>
+        </GlobalErrorBoundary>
       </LayerProvider>
     </AuthProvider>
   )

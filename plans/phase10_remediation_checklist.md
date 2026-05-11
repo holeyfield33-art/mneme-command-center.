@@ -18,7 +18,7 @@ This checklist tracks execution against the prioritized remediation list.
 ## P2 (Quality)
 
 - [ ] Premium visual design system (component library/Tailwind + dark theme + motion)
-- [ ] Global error handling (error boundary + user-friendly failures)
+- [x] Global error handling (error boundary + user-friendly failures)
 - [ ] Model switching (per-agent model assignment + warm/cold + VRAM warnings)
 
 ## P3 (Completeness)
