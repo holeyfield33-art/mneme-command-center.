@@ -125,17 +125,29 @@ export default function Approvals() {
     })
   }
 
-  const submitModifyDraft = () => {
+  const submitModifyDraft = async () => {
     if (!modifyDraft.approvalId || !modifyDraft.details.trim()) {
       setError('Please provide modification details before submitting.')
       return
     }
-    setInfo(
-      `Structured modify request prepared for ${modifyDraft.approvalId}: ` +
-      `${modifyDraft.reasonCode} - ${modifyDraft.details.trim()}`
-    )
-    setError('')
-    setModifyDraft({ approvalId: '', reasonCode: 'scope_change', details: '' })
+
+    try {
+      await approvals.modify(
+        modifyDraft.approvalId,
+        modifyDraft.reasonCode,
+        modifyDraft.details.trim(),
+      )
+      setInfo(
+        `Modify request submitted for ${modifyDraft.approvalId}: ` +
+        `${modifyDraft.reasonCode}`
+      )
+      setError('')
+      setModifyDraft({ approvalId: '', reasonCode: 'scope_change', details: '' })
+      loadApprovals()
+    } catch (err) {
+      setError('Failed to submit modify request')
+      console.error(err)
+    }
   }
 
   if (loading) {

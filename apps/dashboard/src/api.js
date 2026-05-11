@@ -78,7 +78,11 @@ export const approvals = {
     return apiClient.get(url)
   },
   approve: (id) => apiClient.post(`/approvals/${id}/approve`),
-  reject: (id) => apiClient.post(`/approvals/${id}/reject`)
+  reject: (id) => apiClient.post(`/approvals/${id}/reject`),
+  modify: (id, reasonCode, details) => apiClient.post(`/approvals/${id}/modify`, {
+    reason_code: reasonCode,
+    details,
+  })
 }
 
 export const worker = {

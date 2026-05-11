@@ -52,6 +52,19 @@ class ApprovalResponse(BaseModel):
         from_attributes = True
 
 
+class ModifyApprovalRequest(BaseModel):
+    reason_code: str
+    details: str
+
+
+class ModifyApprovalResponse(BaseModel):
+    approval_id: str
+    task_id: str
+    status: str
+    reason_code: str
+    details: str
+
+
 @router.get("", response_model=list[ApprovalResponse])
 def list_approvals(
     status: str = None,
@@ -254,3 +267,60 @@ def reject_approval(
             },
         )
     return approval
+
+
+@router.post("/{approval_id}/modify", response_model=ModifyApprovalResponse)
+def modify_approval(
+    approval_id: str,
+    payload: ModifyApprovalRequest,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    """Submit structured modify guidance while keeping approval pending."""
+    verify_token_header(authorization)
+
+    approval = db.query(Approval).filter(Approval.id == approval_id).first()
+    if not approval:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Approval not found"
+        )
+
+    if approval.status != ApprovalStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Approval is not pending"
+        )
+
+    details = payload.details.strip()
+    if not details:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Modify request details are required"
+        )
+
+    _add_task_log(
+        db,
+        approval.task_id,
+        LogLevel.INFO,
+        f"Modify requested for approval {approval.id}: [{payload.reason_code}] {details}",
+    )
+    db.commit()
+
+    broadcast_now(
+        "approval_modify_requested",
+        {
+            "approval_id": approval.id,
+            "task_id": approval.task_id,
+            "reason_code": payload.reason_code,
+            "details": details,
+        },
+    )
+
+    return ModifyApprovalResponse(
+        approval_id=approval.id,
+        task_id=approval.task_id,
+        status=approval.status.value,
+        reason_code=payload.reason_code,
+        details=details,
+    )
