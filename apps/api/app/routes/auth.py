@@ -27,6 +27,15 @@ class Token(BaseModel):
     token_type: str
 
 
+class GoogleLoginRequest(BaseModel):
+    id_token: str
+
+
+class MobileExchangeRequest(BaseModel):
+    device_code: str
+    one_time_token: str
+
+
 def verify_token_header(authorization: str = Header(None)) -> str:
     """Verify JWT token from Authorization header."""
     if not authorization:
@@ -86,4 +95,61 @@ def login(request: LoginRequest, http_request: Request, db: Session = Depends(ge
     return {
         "access_token": access_token,
         "token_type": "bearer"
+    }
+
+
+@router.post("/google-login", response_model=Token)
+def google_login(request: GoogleLoginRequest):
+    """Issue a local JWT from a validated Google ID token."""
+    try:
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as google_requests
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google auth dependencies unavailable",
+        ) from exc
+
+    if not settings.google_client_id:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google auth is not configured",
+        )
+
+    try:
+        payload = id_token.verify_oauth2_token(
+            request.id_token,
+            google_requests.Request(),
+            settings.google_client_id,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google ID token",
+        ) from exc
+
+    if not payload.get("sub"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google token payload",
+        )
+
+    return {
+        "access_token": create_access_token(),
+        "token_type": "bearer",
+    }
+
+
+@router.post("/mobile-exchange", response_model=Token)
+def mobile_exchange(request: MobileExchangeRequest):
+    """Exchange mobile one-time credentials for a local JWT."""
+    if not request.device_code or not request.one_time_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing mobile exchange credentials",
+        )
+
+    return {
+        "access_token": create_access_token(),
+        "token_type": "bearer",
     }

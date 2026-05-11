@@ -18,7 +18,7 @@ import subprocess
 import shutil
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
 
 from worker.repo_planning import (
     build_repo_profile,
@@ -987,6 +987,23 @@ class MnemeWorker:
         clear_checkpoint()
         return True
 
+    def _process_task_batch(
+        self,
+        tasks: list[Dict[str, Any]],
+        handler: Callable[[Dict[str, Any]], bool],
+        batch_name: str,
+    ) -> None:
+        for task in tasks:
+            try:
+                handler(task)
+            except Exception as exc:
+                logger.exception(
+                    "Exception in %s batch for task %s: %s",
+                    batch_name,
+                    task.get("id"),
+                    exc,
+                )
+
     def run(self, heartbeat_interval: int = 30):
         """Main worker loop."""
         logger.info("Mneme Worker started")
@@ -1011,20 +1028,11 @@ class MnemeWorker:
                         logger.warning("Failed to send heartbeat")
                     last_heartbeat_time = current_time
 
-                # Get and process tasks
-                tasks = self.get_queued_tasks()
-                for task in tasks:
-                    try:
-                        self.process_task(task)
-                    except Exception as e:
-                        logger.exception("Exception processing task: %s", e)
+                queued_tasks = self.get_queued_tasks()
+                self._process_task_batch(queued_tasks, self.process_task, "planning")
 
                 execution_tasks = self.get_execution_ready_tasks()
-                for task in execution_tasks:
-                    try:
-                        self.process_execution_task(task)
-                    except Exception as e:
-                        logger.exception("Exception executing task: %s", e)
+                self._process_task_batch(execution_tasks, self.process_execution_task, "execution")
 
                 # Sleep briefly before next check
                 time.sleep(5)
