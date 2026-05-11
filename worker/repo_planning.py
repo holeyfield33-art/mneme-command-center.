@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_GIT_COMMANDS: dict[str, list[str]] = {
     "status_short": ["git", "status", "--short"],

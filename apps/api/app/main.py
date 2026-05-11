@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -8,6 +10,8 @@ from .database import engine, Base
 from .models import Project, Task, Approval, Log, Worker, SystemState, AuditLog
 from .events import manager
 from .routes import auth, projects, tasks, approvals, worker, system, vault, audit, orchestration, skills
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_schema_compatibility() -> None:

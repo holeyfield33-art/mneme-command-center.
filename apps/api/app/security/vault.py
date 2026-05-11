@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 import os
 import sqlite3
 import time
@@ -13,6 +14,8 @@ from cryptography.hazmat.primitives import hashes
 
 from ..config import settings
 
+logger = logging.getLogger(__name__)
+
 _SECRET_NAME_RE = r"^[A-Z0-9_]{2,80}$"
 
 
@@ -24,6 +27,9 @@ class VaultStatus:
     secret_count: int
 
 
+# WARNING: There is no passphrase recovery mechanism. If the vault passphrase
+# is lost, all stored secrets are permanently unrecoverable. Operators must back
+# up the passphrase externally before storing any secrets.
 class VaultService:
     """Simple local vault with encrypted SQLite backend and session auto-lock."""
 
@@ -134,6 +140,7 @@ class VaultService:
             self._master_key = key
             self._unlocked_at = time.time()
             self._touch()
+            logger.warning("Vault unlocked — ensure passphrase is backed up externally")
             return
 
         salt = base64.urlsafe_b64decode(salt_b64.encode("ascii"))
@@ -148,6 +155,7 @@ class VaultService:
         self._master_key = key
         self._unlocked_at = time.time()
         self._touch()
+        logger.warning("Vault unlocked — ensure passphrase is backed up externally")
 
     def lock(self) -> None:
         self._master_key = None

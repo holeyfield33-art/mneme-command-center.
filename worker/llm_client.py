@@ -9,6 +9,7 @@ Modelled on the Claude Code agentic pattern:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -16,6 +17,8 @@ import subprocess
 import time
 from pathlib import Path
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # System prompt (coding-engineer persona, mirrors Claude Code style)
@@ -624,7 +627,7 @@ class AgentLoop:
         self.prior_phase_context = prior_phase_context
         self.repo_path = repo_path
         self.max_iterations = max_iterations
-        self.log_fn = log_fn or (lambda level, msg: print(f"[{level.upper()}] {msg}"))
+        self.log_fn = log_fn or (lambda level, msg: logger.info("[%s] %s", level.upper(), msg))
         self._extra_secrets = [api_key]
         self.executor = ToolExecutor(repo_path, timeout=bash_timeout)
 
@@ -683,6 +686,12 @@ class AgentLoop:
         if self.prior_phase_context:
             system = system + f"\n\n## Context from prior phase\n{self.prior_phase_context}"
         if self.active_skills:
+            for skill in self.active_skills:
+                if skill.get("required_approval"):
+                    logger.warning(
+                        "Skill %s requires approval but approval check is not yet enforced.",
+                        skill.get("slug") or skill.get("name"),
+                    )
             skill_block = "\n".join(f"- {s['name']}: {s.get('description', '')}" for s in self.active_skills)
             system = system + f"\n\nActive skills available to you:\n{skill_block}"
 
