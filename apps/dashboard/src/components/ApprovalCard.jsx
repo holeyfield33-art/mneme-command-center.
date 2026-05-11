@@ -81,6 +81,39 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
     high: '#c44236',
   }[(approval?.risk_level || 'medium').toLowerCase()] || '#d9822b'
 
+  const decisionBrief = useMemo(() => {
+    const reasons = []
+
+    if (confidenceModel.changedFiles >= 8) {
+      reasons.push('Large file surface area detected across the repository')
+    } else if (confidenceModel.changedFiles >= 4) {
+      reasons.push('Moderate multi-file change scope')
+    } else {
+      reasons.push('Contained change set')
+    }
+
+    if (slaState.overdue) {
+      reasons.push('SLA has expired and needs immediate operator action')
+    } else {
+      reasons.push('SLA window is still active')
+    }
+
+    if (confidenceModel.confidenceBand === 'Low') {
+      reasons.push('Low confidence score indicates high uncertainty in change quality')
+    } else if (confidenceModel.confidenceBand === 'Medium') {
+      reasons.push('Medium confidence score warrants review attention')
+    } else {
+      reasons.push('High confidence score supports streamlined review')
+    }
+
+    let recommendation = 'Approve if core acceptance criteria are satisfied'
+    if (slaState.overdue || confidenceModel.confidenceBand === 'Low') {
+      recommendation = 'Use Modify or Reject until risk is reduced and evidence is stronger'
+    }
+
+    return { reasons, recommendation }
+  }, [confidenceModel, slaState])
+
   return (
     <div
       className="mneme-surface mneme-enter"
@@ -109,7 +142,7 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
           backgroundColor: '#f5f9fc',
           border: '1px solid #d9e3ec',
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
           gap: '0.75rem',
         }}
       >
@@ -128,6 +161,28 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
         <div>
           <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>SLA Timer</div>
           <div style={{ fontWeight: 700, color: slaState.overdue ? '#c44236' : '#223649' }}>{slaState.label}</div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: '0.85rem',
+          padding: '0.85rem',
+          borderRadius: '8px',
+          border: '1px solid #dbe5ee',
+          backgroundColor: '#fbfdff',
+        }}
+      >
+        <div style={{ fontSize: '0.8rem', color: '#5b6a79', marginBottom: '0.3rem' }}>Decision Brief</div>
+        <ul style={{ margin: 0, paddingLeft: '1.1rem', color: '#30465c', fontSize: '0.88rem' }}>
+          {decisionBrief.reasons.map((reason, index) => (
+            <li key={`${approval.id}-reason-${index}`} style={{ marginBottom: '0.25rem' }}>
+              {reason}
+            </li>
+          ))}
+        </ul>
+        <div style={{ marginTop: '0.45rem', fontSize: '0.84rem', color: '#223649' }}>
+          <strong>Recommended action:</strong> {decisionBrief.recommendation}
         </div>
       </div>
 
@@ -180,7 +235,7 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
         </div>
       )}
 
-      <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+      <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
         <button
           onClick={() => onApprove(approval.id)}
           style={{
