@@ -73,6 +73,9 @@ export const tasks = {
   enableOrchestration: (id) => apiClient.post(`/tasks/${id}/orchestration/enable`),
   startOrchestrationPhase: (id, phaseType, context = {}) =>
     apiClient.post(`/tasks/${id}/orchestration/start-phase`, context, { params: { phase_type: phaseType } }),
+  pauseTask: (taskId) => apiClient.post(`/tasks/${taskId}/pause`),
+  resumeTask: (taskId) => apiClient.post(`/tasks/${taskId}/resume`),
+  cancelTask: (taskId) => apiClient.post(`/tasks/${taskId}/cancel`),
   orchestrationInitialize: (id) => apiClient.post(`/api/v1/tasks/${id}/orchestration/initialize`),
   orchestrationPhases: (id) => apiClient.get(`/api/v1/tasks/${id}/orchestration/phases`),
   orchestrationStatus: (id) => apiClient.get(`/api/v1/tasks/${id}/orchestration/status`),

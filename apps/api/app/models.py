@@ -14,6 +14,7 @@ class ProjectStatus(str, enum.Enum):
 
 class TaskStatus(str, enum.Enum):
     QUEUED = "queued"
+    PAUSED = "paused"          # operator-held; can be resumed back to QUEUED
     PLANNING = "planning"
     WAITING_FOR_PLAN_APPROVAL = "waiting_for_plan_approval"
     QUEUED_FOR_EXECUTION = "queued_for_execution"
@@ -26,6 +27,7 @@ class TaskStatus(str, enum.Enum):
     EXECUTING = "executing"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"    # terminal; operator-requested cancellation
 
 
 class TaskMode(str, enum.Enum):

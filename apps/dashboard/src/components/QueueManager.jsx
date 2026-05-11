@@ -17,12 +17,16 @@ export default function QueueManager() {
   const [queue, setQueue] = useState([])
   const [loading, setLoading] = useState(false)
   const [draggedTask, setDraggedTask] = useState(null)
+  // Per-task loading state: { [taskId]: 'pause' | 'resume' | 'cancel' | null }
+  const [taskLoading, setTaskLoading] = useState({})
+  // Per-task inline error message: { [taskId]: string }
+  const [taskErrors, setTaskErrors] = useState({})
   const layer = layers?.layer1 // Reuse layer 1 socket or show separately
 
   const loadQueue = useCallback(async () => {
     try {
       const res = await tasks.list()
-      const queued = res.data?.filter(t => ['queued', 'pending', 'planning'].includes(t.status)) || []
+      const queued = res.data?.filter(t => ['queued', 'pending', 'planning', 'paused'].includes(t.status)) || []
       setQueue(queued)
     } catch (err) {
       console.error('Failed to load queue:', err)
@@ -43,32 +47,45 @@ export default function QueueManager() {
   }, [loadQueue])
 
   const handlePauseTask = async (taskId) => {
+    setTaskLoading(l => ({ ...l, [taskId]: 'pause' }))
+    setTaskErrors(e => ({ ...e, [taskId]: null }))
     try {
-      // Call pause endpoint if available
-      // await tasks.pause(taskId)
-      setQueue(q => q.map(t => t.id === taskId ? { ...t, status: 'paused' } : t))
+      const res = await tasks.pauseTask(taskId)
+      setQueue(q => q.map(t => t.id === taskId ? { ...t, status: res.data.status } : t))
     } catch (err) {
-      console.error('Failed to pause task:', err)
+      const msg = err.response?.data?.detail || 'Failed to pause task'
+      setTaskErrors(e => ({ ...e, [taskId]: msg }))
+    } finally {
+      setTaskLoading(l => ({ ...l, [taskId]: null }))
     }
   }
 
   const handleResumeTask = async (taskId) => {
+    setTaskLoading(l => ({ ...l, [taskId]: 'resume' }))
+    setTaskErrors(e => ({ ...e, [taskId]: null }))
     try {
-      // Call resume endpoint if available
-      // await tasks.resume(taskId)
-      setQueue(q => q.map(t => t.id === taskId ? { ...t, status: 'queued' } : t))
+      const res = await tasks.resumeTask(taskId)
+      setQueue(q => q.map(t => t.id === taskId ? { ...t, status: res.data.status } : t))
     } catch (err) {
-      console.error('Failed to resume task:', err)
+      const msg = err.response?.data?.detail || 'Failed to resume task'
+      setTaskErrors(e => ({ ...e, [taskId]: msg }))
+    } finally {
+      setTaskLoading(l => ({ ...l, [taskId]: null }))
     }
   }
 
   const handleCancelTask = async (taskId, reason) => {
+    setTaskLoading(l => ({ ...l, [taskId]: 'cancel' }))
+    setTaskErrors(e => ({ ...e, [taskId]: null }))
     try {
-      // Call cancel endpoint if available
-      // await tasks.cancel(taskId, { reason })
+      await tasks.cancelTask(taskId)
+      // Remove from queue on successful cancel (it's terminal)
       setQueue(q => q.filter(t => t.id !== taskId))
     } catch (err) {
-      console.error('Failed to cancel task:', err)
+      const msg = err.response?.data?.detail || 'Failed to cancel task'
+      setTaskErrors(e => ({ ...e, [taskId]: msg }))
+    } finally {
+      setTaskLoading(l => ({ ...l, [taskId]: null }))
     }
   }
 
@@ -182,52 +199,65 @@ export default function QueueManager() {
               </div>
 
               {/* Actions */}
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-end' }}>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
                 {task.status === 'paused' ? (
                   <button
                     onClick={() => handleResumeTask(task.id)}
+                    disabled={!!taskLoading[task.id]}
                     style={{
                       padding: '0.4rem 0.8rem',
                       backgroundColor: '#27ae60',
                       color: 'white',
                       border: 'none',
                       borderRadius: '0.2rem',
-                      cursor: 'pointer',
-                      fontSize: '0.8rem'
+                      cursor: taskLoading[task.id] ? 'not-allowed' : 'pointer',
+                      fontSize: '0.8rem',
+                      opacity: taskLoading[task.id] ? 0.6 : 1
                     }}
                   >
-                    Resume
+                    {taskLoading[task.id] === 'resume' ? '⏳' : 'Resume'}
                   </button>
                 ) : (
                   <button
                     onClick={() => handlePauseTask(task.id)}
+                    disabled={!!taskLoading[task.id]}
                     style={{
                       padding: '0.4rem 0.8rem',
                       backgroundColor: '#f39c12',
                       color: 'white',
                       border: 'none',
                       borderRadius: '0.2rem',
-                      cursor: 'pointer',
-                      fontSize: '0.8rem'
+                      cursor: taskLoading[task.id] ? 'not-allowed' : 'pointer',
+                      fontSize: '0.8rem',
+                      opacity: taskLoading[task.id] ? 0.6 : 1
                     }}
                   >
-                    Pause
+                    {taskLoading[task.id] === 'pause' ? '⏳' : 'Pause'}
                   </button>
                 )}
                 <button
                   onClick={() => handleCancelTask(task.id, 'Cancelled by user')}
+                  disabled={!!taskLoading[task.id]}
                   style={{
                     padding: '0.4rem 0.8rem',
                     backgroundColor: '#e74c3c',
                     color: 'white',
                     border: 'none',
                     borderRadius: '0.2rem',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem'
+                    cursor: taskLoading[task.id] ? 'not-allowed' : 'pointer',
+                    fontSize: '0.8rem',
+                    opacity: taskLoading[task.id] ? 0.6 : 1
                   }}
                 >
-                  Cancel
+                  {taskLoading[task.id] === 'cancel' ? '⏳' : 'Cancel'}
                 </button>
+                </div>
+                {taskErrors[task.id] && (
+                  <div style={{ fontSize: '0.75rem', color: '#e74c3c', maxWidth: '16rem', textAlign: 'right' }}>
+                    ⚠ {taskErrors[task.id]}
+                  </div>
+                )}
               </div>
             </div>
 
