@@ -195,6 +195,13 @@ Current jobs:
 
 This catches regressions where unit tests pass but runtime/API startup paths fail in CI.
 
+Recommended branch protection for `main`:
+
+- Require status checks to pass before merge (`backend-tests`, `frontend-build`, `live-api-integration`, `ui-smoke`)
+- Require pull request before merging
+- Require branches to be up to date before merge
+- Restrict force pushes
+
 ## Notes
 
 - Dashboard UI harness tests are intentionally skipped in pytest (`test_dashboard_dependent_checks_are_skipped`) and require dedicated UI automation if desired.
