@@ -21,6 +21,21 @@
 - Bash or compatible shell
 - Same network connection (for phone access)
 
+## Environment Files (Recommended)
+
+Initialize environment files from the new `env/` folder:
+
+```bash
+cd /workspaces/mneme-command-center.
+./env/init.sh
+```
+
+This creates:
+- `.env` (API + worker configuration)
+- `apps/dashboard/.env.local` (dashboard API URL)
+
+Edit those files first, then continue with backend/dashboard/worker setup.
+
 ## Backend Setup
 
 ### Step 1: Create Virtual Environment
@@ -166,7 +181,9 @@ Notes:
 ### Step 4: Run the Worker
 
 ```bash
-python main.py
+cd ..
+set -a && source .env && set +a
+python -m worker.main
 ```
 
 Output:
