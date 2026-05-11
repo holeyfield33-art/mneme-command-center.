@@ -11,6 +11,7 @@ from ..utils import generate_id, verify_token
 from ..notifier import ApiNotifier
 from ..config import settings
 from ..security.vault import vault_service
+from ..security.audit import log_audit_event
 from .auth import verify_token_header
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
@@ -190,6 +191,19 @@ def approve_approval(
                     _add_task_log(db, task.id, LogLevel.WARNING, "GitHub PR skipped: GITHUB_TOKEN not configured")
             else:
                 _add_task_log(db, task.id, LogLevel.WARNING, "GitHub PR skipped: missing repo_url or branch_name")
+
+    log_audit_event(
+        db,
+        actor="operator",
+        operation="approval_approved",
+        resource=approval.id,
+        status="ok",
+        details={
+            "task_id": approval.task_id,
+            "approval_type": approval.type.value,
+            "risk_level": approval.risk_level.value if approval.risk_level else None,
+        },
+    )
     
     db.commit()
     db.refresh(approval)
@@ -244,6 +258,19 @@ def reject_approval(
     if task:
         next_status = status_after_approval(task.status.value, approval.type.value, approved=False)
         task.status = TaskStatus(next_status)
+
+    log_audit_event(
+        db,
+        actor="operator",
+        operation="approval_rejected",
+        resource=approval.id,
+        status="ok",
+        details={
+            "task_id": approval.task_id,
+            "approval_type": approval.type.value,
+            "risk_level": approval.risk_level.value if approval.risk_level else None,
+        },
+    )
     
     db.commit()
     db.refresh(approval)
@@ -305,6 +332,20 @@ def modify_approval(
         LogLevel.INFO,
         f"Modify requested for approval {approval.id}: [{payload.reason_code}] {details}",
     )
+
+    log_audit_event(
+        db,
+        actor="operator",
+        operation="approval_modify_requested",
+        resource=approval.id,
+        status="ok",
+        details={
+            "task_id": approval.task_id,
+            "reason_code": payload.reason_code,
+            "details": details,
+        },
+    )
+
     db.commit()
 
     broadcast_now(

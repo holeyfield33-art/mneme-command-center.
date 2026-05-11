@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { approvals, tasks } from '../api'
 import ApprovalCard from '../components/ApprovalCard'
+import ApprovalsAuditTimeline from '../components/ApprovalsAuditTimeline'
 
 export default function Approvals() {
   const [approvalList, setApprovalList] = useState([])
@@ -169,6 +170,10 @@ export default function Approvals() {
 
       {error && <div className="mneme-alert error">{error}</div>}
       {info && <div className="mneme-alert info">{info}</div>}
+
+      <div style={{ marginBottom: '1.1rem' }}>
+        <ApprovalsAuditTimeline />
+      </div>
 
       {approvalList.length === 0 ? (
         <div className="mneme-empty mneme-enter" style={{ textAlign: 'center' }}>
