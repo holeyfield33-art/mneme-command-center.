@@ -11,6 +11,7 @@ from ..utils import generate_id, verify_token
 from ..notifier import ApiNotifier
 from ..config import settings
 from ..security.vault import vault_service
+from ..security.audit import log_audit_event
 from .auth import verify_token_header
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
@@ -50,6 +51,19 @@ class ApprovalResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class ModifyApprovalRequest(BaseModel):
+    reason_code: str
+    details: str
+
+
+class ModifyApprovalResponse(BaseModel):
+    approval_id: str
+    task_id: str
+    status: str
+    reason_code: str
+    details: str
 
 
 @router.get("", response_model=list[ApprovalResponse])
@@ -177,6 +191,19 @@ def approve_approval(
                     _add_task_log(db, task.id, LogLevel.WARNING, "GitHub PR skipped: GITHUB_TOKEN not configured")
             else:
                 _add_task_log(db, task.id, LogLevel.WARNING, "GitHub PR skipped: missing repo_url or branch_name")
+
+    log_audit_event(
+        db,
+        actor="operator",
+        operation="approval_approved",
+        resource=approval.id,
+        status="ok",
+        details={
+            "task_id": approval.task_id,
+            "approval_type": approval.type.value,
+            "risk_level": approval.risk_level.value if approval.risk_level else None,
+        },
+    )
     
     db.commit()
     db.refresh(approval)
@@ -231,6 +258,19 @@ def reject_approval(
     if task:
         next_status = status_after_approval(task.status.value, approval.type.value, approved=False)
         task.status = TaskStatus(next_status)
+
+    log_audit_event(
+        db,
+        actor="operator",
+        operation="approval_rejected",
+        resource=approval.id,
+        status="ok",
+        details={
+            "task_id": approval.task_id,
+            "approval_type": approval.type.value,
+            "risk_level": approval.risk_level.value if approval.risk_level else None,
+        },
+    )
     
     db.commit()
     db.refresh(approval)
@@ -254,3 +294,74 @@ def reject_approval(
             },
         )
     return approval
+
+
+@router.post("/{approval_id}/modify", response_model=ModifyApprovalResponse)
+def modify_approval(
+    approval_id: str,
+    payload: ModifyApprovalRequest,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    """Submit structured modify guidance while keeping approval pending."""
+    verify_token_header(authorization)
+
+    approval = db.query(Approval).filter(Approval.id == approval_id).first()
+    if not approval:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Approval not found"
+        )
+
+    if approval.status != ApprovalStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Approval is not pending"
+        )
+
+    details = payload.details.strip()
+    if not details:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Modify request details are required"
+        )
+
+    _add_task_log(
+        db,
+        approval.task_id,
+        LogLevel.INFO,
+        f"Modify requested for approval {approval.id}: [{payload.reason_code}] {details}",
+    )
+
+    log_audit_event(
+        db,
+        actor="operator",
+        operation="approval_modify_requested",
+        resource=approval.id,
+        status="ok",
+        details={
+            "task_id": approval.task_id,
+            "reason_code": payload.reason_code,
+            "details": details,
+        },
+    )
+
+    db.commit()
+
+    broadcast_now(
+        "approval_modify_requested",
+        {
+            "approval_id": approval.id,
+            "task_id": approval.task_id,
+            "reason_code": payload.reason_code,
+            "details": details,
+        },
+    )
+
+    return ModifyApprovalResponse(
+        approval_id=approval.id,
+        task_id=approval.task_id,
+        status=approval.status.value,
+        reason_code=payload.reason_code,
+        details=details,
+    )

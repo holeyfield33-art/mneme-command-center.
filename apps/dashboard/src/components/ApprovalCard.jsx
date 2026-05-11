@@ -1,7 +1,14 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 
 export default function ApprovalCard({ approval, task, onApprove, onReject, onModify }) {
   const [showPreview, setShowPreview] = useState(false)
+  const [nowMs, setNowMs] = useState(Date.now())
+  const [activePersona, setActivePersona] = useState('operator')
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setNowMs(Date.now()), 30000)
+    return () => window.clearInterval(timerId)
+  }, [])
 
   const files = useMemo(() => {
     const maybeFiles = approval?.plan_details?.files
@@ -36,11 +43,116 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
     }
   }, [approval, files])
 
+  const slaState = useMemo(() => {
+    const risk = (approval?.risk_level || 'medium').toLowerCase()
+    const createdAt = approval?.created_at ? new Date(approval.created_at).getTime() : null
+
+    if (!createdAt || Number.isNaN(createdAt)) {
+      return {
+        label: 'No SLA data',
+        overdue: false,
+      }
+    }
+
+    const limitHoursByRisk = {
+      low: 24,
+      medium: 8,
+      high: 2,
+    }
+
+    const limitHours = limitHoursByRisk[risk] || limitHoursByRisk.medium
+    const dueAtMs = createdAt + (limitHours * 60 * 60 * 1000)
+    const diffMs = dueAtMs - nowMs
+    const overdue = diffMs < 0
+
+    const absMinutes = Math.floor(Math.abs(diffMs) / 60000)
+    const hours = Math.floor(absMinutes / 60)
+    const minutes = absMinutes % 60
+    const timeLabel = `${hours}h ${minutes}m`
+
+    return {
+      label: overdue ? `Overdue by ${timeLabel}` : `${timeLabel} remaining`,
+      overdue,
+    }
+  }, [approval, nowMs])
+
   const riskAccent = {
     low: '#2f9e6f',
     medium: '#d9822b',
     high: '#c44236',
   }[(approval?.risk_level || 'medium').toLowerCase()] || '#d9822b'
+
+  const decisionBrief = useMemo(() => {
+    const reasons = []
+
+    if (confidenceModel.changedFiles >= 8) {
+      reasons.push('Large file surface area detected across the repository')
+    } else if (confidenceModel.changedFiles >= 4) {
+      reasons.push('Moderate multi-file change scope')
+    } else {
+      reasons.push('Contained change set')
+    }
+
+    if (slaState.overdue) {
+      reasons.push('SLA has expired and needs immediate operator action')
+    } else {
+      reasons.push('SLA window is still active')
+    }
+
+    if (confidenceModel.confidenceBand === 'Low') {
+      reasons.push('Low confidence score indicates high uncertainty in change quality')
+    } else if (confidenceModel.confidenceBand === 'Medium') {
+      reasons.push('Medium confidence score warrants review attention')
+    } else {
+      reasons.push('High confidence score supports streamlined review')
+    }
+
+    let recommendation = 'Approve if core acceptance criteria are satisfied'
+    if (slaState.overdue || confidenceModel.confidenceBand === 'Low') {
+      recommendation = 'Use Modify or Reject until risk is reduced and evidence is stronger'
+    }
+
+    return { reasons, recommendation }
+  }, [confidenceModel, slaState])
+
+  const roleSummary = useMemo(() => {
+    if (activePersona === 'reviewer') {
+      return {
+        title: 'Reviewer Summary',
+        points: [
+          `Validate changed files (${confidenceModel.changedFiles}) against stated objective.`,
+          `Inspect blast radius (${confidenceModel.blastRadius}) before final action.`,
+          slaState.overdue
+            ? 'Prioritize this approval now because its SLA is overdue.'
+            : `Review within SLA window: ${slaState.label}.`,
+        ],
+      }
+    }
+
+    if (activePersona === 'manager') {
+      return {
+        title: 'Manager Summary',
+        points: [
+          `Risk posture is ${String(approval?.risk_level || 'medium').toUpperCase()} with ${confidenceModel.confidenceBand.toLowerCase()} confidence.`,
+          `Expected impact is ${confidenceModel.blastRadius} across ${confidenceModel.changedFiles} file(s).`,
+          slaState.overdue
+            ? 'Escalation suggested: approval is outside SLA.'
+            : 'No escalation required yet; SLA remains active.',
+        ],
+      }
+    }
+
+    return {
+      title: 'Operator Summary',
+      points: [
+        `Primary recommendation: ${decisionBrief.recommendation}.`,
+        `Current confidence: ${confidenceModel.confidence}% (${confidenceModel.confidenceBand}).`,
+        slaState.overdue
+          ? 'Execute triage action immediately (modify or reject until risk drops).'
+          : 'Proceed with normal triage sequence and evidence review.',
+      ],
+    }
+  }, [activePersona, approval, confidenceModel, decisionBrief, slaState])
 
   return (
     <div
@@ -70,7 +182,7 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
           backgroundColor: '#f5f9fc',
           border: '1px solid #d9e3ec',
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(120px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
           gap: '0.75rem',
         }}
       >
@@ -86,6 +198,76 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
           <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>Changed Files</div>
           <div style={{ fontWeight: 700, color: '#223649' }}>{confidenceModel.changedFiles}</div>
         </div>
+        <div>
+          <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>SLA Timer</div>
+          <div style={{ fontWeight: 700, color: slaState.overdue ? '#c44236' : '#223649' }}>{slaState.label}</div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: '0.85rem',
+          padding: '0.85rem',
+          borderRadius: '8px',
+          border: '1px solid #dbe5ee',
+          backgroundColor: '#fbfdff',
+        }}
+      >
+        <div style={{ fontSize: '0.8rem', color: '#5b6a79', marginBottom: '0.3rem' }}>Decision Brief</div>
+        <ul style={{ margin: 0, paddingLeft: '1.1rem', color: '#30465c', fontSize: '0.88rem' }}>
+          {decisionBrief.reasons.map((reason, index) => (
+            <li key={`${approval.id}-reason-${index}`} style={{ marginBottom: '0.25rem' }}>
+              {reason}
+            </li>
+          ))}
+        </ul>
+        <div style={{ marginTop: '0.45rem', fontSize: '0.84rem', color: '#223649' }}>
+          <strong>Recommended action:</strong> {decisionBrief.recommendation}
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: '0.85rem',
+          padding: '0.85rem',
+          borderRadius: '8px',
+          border: '1px solid #dbe5ee',
+          backgroundColor: '#f8fbff',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+          {[
+            { id: 'operator', label: 'Operator' },
+            { id: 'reviewer', label: 'Reviewer' },
+            { id: 'manager', label: 'Manager' },
+          ].map((persona) => (
+            <button
+              key={persona.id}
+              type="button"
+              onClick={() => setActivePersona(persona.id)}
+              style={{
+                border: '1px solid #c9d4de',
+                borderRadius: '999px',
+                padding: '0.2rem 0.6rem',
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                color: activePersona === persona.id ? 'white' : '#30465c',
+                backgroundColor: activePersona === persona.id ? '#1f7a8c' : 'white',
+              }}
+            >
+              {persona.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: '0.8rem', color: '#5b6a79', marginBottom: '0.3rem' }}>{roleSummary.title}</div>
+        <ul style={{ margin: 0, paddingLeft: '1.1rem', color: '#30465c', fontSize: '0.86rem' }}>
+          {roleSummary.points.map((point, index) => (
+            <li key={`${approval.id}-persona-point-${index}`} style={{ marginBottom: '0.22rem' }}>
+              {point}
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '4px', maxHeight: '300px', overflowY: 'auto' }}>
@@ -137,7 +319,7 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
         </div>
       )}
 
-      <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+      <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
         <button
           onClick={() => onApprove(approval.id)}
           style={{
