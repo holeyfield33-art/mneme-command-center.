@@ -66,6 +66,7 @@ export const tasks = {
     apiClient.post(`/api/v1/tasks/${id}/orchestration/phases/${phaseType}/complete`, output),
   orchestrationFailPhase: (id, phaseType, error) =>
     apiClient.post(`/api/v1/tasks/${id}/orchestration/phases/${phaseType}/fail`, null, { params: { error } }),
+    getCost: (id) => apiClient.get(`/tasks/${id}/cost`),
 }
 
 export const approvals = {

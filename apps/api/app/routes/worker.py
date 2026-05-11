@@ -192,8 +192,8 @@ def get_queued_tasks(
                 mode=task.mode.value,
                 risk_level=task.risk_level.value,
                 status=task.status.value,
-                model_provider=project.model_provider,
-                model_name=project.model_name,
+                model_provider=task.model_provider or project.model_provider,
+                model_name=task.model_name or project.model_name,
             )
         )
     return response
@@ -239,8 +239,8 @@ def get_execution_ready_tasks(
                 risk_level=task.risk_level.value,
                 status=task.status.value,
                 approved_plan_summary=latest_approved_plan.summary if latest_approved_plan else None,
-                model_provider=project.model_provider,
-                model_name=project.model_name,
+                model_provider=task.model_provider or project.model_provider,
+                model_name=task.model_name or project.model_name,
             )
         )
 

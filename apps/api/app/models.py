@@ -92,6 +92,8 @@ class Task(Base):
     mode = Column(Enum(TaskMode), default=TaskMode.INTERACTIVE)
     risk_level = Column(Enum(RiskLevel), default=RiskLevel.MEDIUM)
     branch_name = Column(String, nullable=True)
+    model_provider = Column(String, nullable=True)
+    model_name = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

@@ -587,6 +587,7 @@ class AgentLoop:
         *,
         ollama_base_url: str = "http://localhost:11434",
     ):
+        self.active_skills: list[dict] = []
         self.repo_path = repo_path
         self.max_iterations = max_iterations
         self.log_fn = log_fn or (lambda level, msg: print(f"[{level.upper()}] {msg}"))
@@ -607,11 +608,44 @@ class AgentLoop:
         self.provider = provider
         self.model = model
 
+    # Cost table: (input_$/1k, output_$/1k)
+    _COST_TABLE: dict[str, tuple[float, float]] = {
+        "claude-opus-4-5": (0.015, 0.075),
+        "claude-3-5-sonnet-20241022": (0.003, 0.015),
+        "claude-3-haiku-20240307": (0.00025, 0.00125),
+        "gpt-4o": (0.005, 0.015),
+        "gpt-4o-mini": (0.00015, 0.0006),
+        "gemini-2.5-pro": (0.00125, 0.005),
+        "llama3.1": (0.0, 0.0),
+    }
+
+    def _estimate_tokens(self, text: str) -> int:
+        return max(1, len(text) // 4)
+
+    def _record_cost(self, prompt_tokens: int, completion_tokens: int) -> None:
+        rate = self._COST_TABLE.get(self.model, (0.0, 0.0))
+        self.total_prompt_tokens += prompt_tokens
+        self.total_completion_tokens += completion_tokens
+        self.total_cost_usd += (prompt_tokens / 1000 * rate[0]) + (completion_tokens / 1000 * rate[1])
+
     def run(self, task_prompt: str) -> tuple[bool, str]:
         """
         Run the agent loop.
         Returns (success: bool, summary: str).
         """
+        self.total_prompt_tokens: int = 0
+        self.total_completion_tokens: int = 0
+        self.total_cost_usd: float = 0.0
+
+        budget_usd = float(os.getenv("AGENT_BUDGET_USD", "0"))
+        if budget_usd > 0:
+            self.log_fn("info", f"Agent budget: ${budget_usd:.4f}")
+
+        system = SYSTEM_PROMPT
+        if self.active_skills:
+            skill_block = "\n".join(f"- {s['name']}: {s.get('description', '')}" for s in self.active_skills)
+            system = system + f"\n\nActive skills available to you:\n{skill_block}"
+
         self.log_fn("info", f"Agent loop starting — provider={self.provider} model={self.model}")
         messages: list[dict] = [{"role": "user", "content": task_prompt}]
 
@@ -619,10 +653,18 @@ class AgentLoop:
             self.log_fn("info", f"Agent iteration {iteration}/{self.max_iterations}")
 
             try:
-                text, tool_calls = self.adapter.call(messages, SYSTEM_PROMPT)
+                text, tool_calls = self.adapter.call(messages, system)
             except Exception as exc:
                 self.log_fn("error", f"LLM call failed: {exc}")
                 return False, str(exc)
+
+            prompt_approx = sum(self._estimate_tokens(str(m.get("content", ""))) for m in messages)
+            completion_approx = self._estimate_tokens(text or "")
+            self._record_cost(prompt_approx, completion_approx)
+
+            if budget_usd > 0 and self.total_cost_usd > budget_usd:
+                self.log_fn("warning", f"Budget exceeded: ${self.total_cost_usd:.4f} > ${budget_usd:.4f}. Stopping.")
+                return False, f"Agent stopped: budget ${budget_usd:.4f} exceeded (${self.total_cost_usd:.4f} used)"
 
             if text:
                 self.log_fn("info", f"Model: {text[:1000]}")
@@ -654,9 +696,11 @@ class AgentLoop:
                     success = status == "done"
                     level = "info" if success else "warning"
                     self.log_fn(level, f"Task complete — status={status}: {summary}")
+                    self.log_fn("info", f"Cost summary: prompt_tokens={self.total_prompt_tokens} completion_tokens={self.total_completion_tokens} estimated_cost=${self.total_cost_usd:.6f}")
                     return success, summary
 
         self.log_fn("warning", f"Agent loop reached max iterations ({self.max_iterations})")
+        self.log_fn("info", f"Cost summary: prompt_tokens={self.total_prompt_tokens} completion_tokens={self.total_completion_tokens} estimated_cost=${self.total_cost_usd:.6f}")
         return False, f"Agent did not complete within {self.max_iterations} iterations."
 
 
@@ -671,6 +715,7 @@ def build_agent_loop(
     log_fn: Callable[[str, str], None],
     max_iterations: int = 30,
     bash_timeout: int = 60,
+    active_skills: list[dict] | None = None,
 ) -> AgentLoop:
     """
     Build an AgentLoop using per-project overrides or global env vars.
@@ -697,7 +742,7 @@ def build_agent_loop(
     else:
         raise ValueError(f"Unknown MODEL_PROVIDER: {provider!r}")
 
-    return AgentLoop(
+    loop = AgentLoop(
         provider=provider,
         api_key=api_key,
         model=model,
@@ -707,3 +752,5 @@ def build_agent_loop(
         log_fn=log_fn,
         ollama_base_url=ollama_url,
     )
+    loop.active_skills = active_skills or []
+    return loop

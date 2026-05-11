@@ -22,6 +22,7 @@ export default function TaskDetail() {
   const [prStatusLoading, setPrStatusLoading] = useState(false)
   const [prStatus, setPrStatus] = useState(null)
   const [lastPrRefreshAt, setLastPrRefreshAt] = useState(null)
+    const [costInfo, setCostInfo] = useState(null)
 
   const refreshPrStatus = useCallback(async () => {
     setPrStatusLoading(true)
@@ -51,6 +52,10 @@ export default function TaskDetail() {
       const approvalsRes = await approvals.list(undefined, taskId)
       setTaskApprovals(approvalsRes.data)
       await refreshPrStatus()
+        try {
+          const costRes = await tasks.getCost(taskId)
+          setCostInfo(costRes.data)
+        } catch (_e) { /* cost info is best-effort */ }
     } catch (err) {
       setError('Failed to load task')
       console.error(err)
@@ -225,6 +230,21 @@ export default function TaskDetail() {
           <div><strong>Created:</strong> {new Date(task.created_at).toLocaleString()}</div>
         </div>
       </div>
+
+        {costInfo && (costInfo.total_tokens > 0 || costInfo.budget_usd > 0) && (
+          <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#fff8e7', borderRadius: '8px', border: '1px solid #ffe08a' }}>
+            <h2 style={{ marginTop: 0 }}>Cost &amp; Usage</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+              <div><strong>Total Tokens:</strong> {costInfo.total_tokens.toLocaleString()}</div>
+              <div><strong>Estimated Cost:</strong> ${costInfo.estimated_cost_usd.toFixed(4)}</div>
+              {costInfo.budget_usd > 0 && (
+                <div style={{ color: costInfo.budget_remaining_usd === 0 ? '#c00' : '#060' }}>
+                  <strong>Budget:</strong> ${costInfo.budget_usd.toFixed(2)} (${costInfo.budget_remaining_usd?.toFixed(4) ?? '—'} remaining)
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
         <h2>Repo Planning Summary</h2>
