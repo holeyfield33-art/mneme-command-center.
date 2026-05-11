@@ -1,150 +1,192 @@
-# Mneme Command Center - Phase 2
+# Mneme Command Center
 
-A single-user, local-first autonomous coding command center controlled from a phone dashboard.
+Local-first autonomous coding command center with human approvals, live observability, and hardened execution controls.
 
-## Overview
+## What Mneme Is
 
-Mneme lets you:
+Mneme provides a complete local command center for running software-engineering tasks safely:
 
-- Create coding/research tasks from your phone
-- Route them to a worker running on your laptop
-- Watch tasks, logs, and approvals update live through SSE
-- Review plan file previews directly in approval cards
-- Recover worker progress after restart with checkpoints
-- Create tasks faster with voice input and one-click templates
+- Create tasks from a mobile-friendly dashboard
+- Route work through API + worker orchestration
+- Review approvals and logs in real time via SSE
+- Enforce security boundaries (vault controls, budget controls, sandbox mode)
+- Track orchestration phases and rollback points
+- Select model provider/model per task
+
+## Repository Depth (Current Scope)
+
+This repository now includes full-stack capabilities across API, dashboard, worker, security, orchestration, and integration testing.
+
+### 1. API Layer (`apps/api`)
+
+- FastAPI service with auth, projects, tasks, approvals, worker routes, system routes
+- SSE event stream + event broadcasting
+- Security controls:
+  - Vault lock + auto-lock settings
+  - Re-auth sensitive operation gates
+  - Emergency stop flagging
+- Orchestration endpoints:
+  - Phase initialization and status
+  - Checkpoint listing
+  - Rollback + resume
+- Cost telemetry endpoint for task-level token/cost summaries
+- Skills registry endpoints for skill metadata and activation
+
+### 2. Dashboard Layer (`apps/dashboard`)
+
+- React + Vite single-page app
+- Real-time update model (SSE-first; polling removed in critical flows)
+- Approval workflow UI:
+  - Approval hub
+  - Audit timeline
+  - Context and risk display
+- Workflow orchestration UI:
+  - Phase graph/status
+  - Checkpoint controls
+  - Rollback actions
+- Task operations:
+  - Task creation templates
+  - Voice input
+  - Per-task model provider/model override
+  - Cost & usage visibility
+- UX hardening:
+  - Global error boundary
+  - Theme token system + dark mode support
+
+### 3. Worker Layer (`worker`)
+
+- Task polling and status transitions
+- Agentic tool-use loop (`worker/llm_client.py`) with provider adapters:
+  - Anthropic
+  - OpenAI
+  - Google
+  - Ollama (local/cloud via base URL)
+- Safe execution controls:
+  - Bash allowlist and blocked shell token policy
+  - Docker sandbox execution mode for bash tool
+  - Memory/cpu/pid/network controls in sandbox mode
+- Reliability:
+  - Checkpoint persistence + recovery
+  - Notifications integration
+- Cost guardrails:
+  - Token estimation
+  - Per-model cost estimation
+  - Budget stop via `AGENT_BUDGET_USD`
+- Secret-safety logging:
+  - Centralized redaction for known keys and token patterns before logging
+
+### 4. Security & Governance
+
+- Vault auto-lock cap enforcement
+- Emergency stop end-to-end behavior
+- Skills metadata integration into agent prompt context
+- Re-auth window config for sensitive routes
+- Log redaction hardening for API/provider token leak prevention
+
+### 5. Tests & Validation (`tests`)
+
+- Local unit/integration suite (non-live)
+- Live API integration suite guarded by env flags
+- Worker-enabled live checks for heartbeat/status flow
+- Notification, planning, orchestration, and worker execution path tests
 
 ## Architecture
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                   Dashboard (React/Vite)                     │
-│                   - List projects & tasks                    │
-│                   - Live approvals, logs, task updates       │
-│                   - Voice task creation + templates           │
-│                   - Control emergency stop                   │
-└─────────────────┬───────────────────────────────────────────┘
-                  │
-                  │ (HTTP/JSON)
-                  │
-┌─────────────────▼───────────────────────────────────────────┐
-│              FastAPI Backend (localhost:8000)                │
-│ - SQLite database                                           │
-│ - Admin password auth                                       │
-│ - Projects, Tasks, Approvals, Logs                          │
-│ - Worker coordination + SSE event streaming                 │
-│ - Emergency stop                                            │
-└─────────────────▲───────────────────────────────────────────┘
-                  │
-                  │ (HTTP)
-                  │
-┌─────────────────┴───────────────────────────────────────────┐
-│            Worker (Python - localhost script)                │
-│ - Polls API for queued tasks                                │
-│ - Sends heartbeat every 30s                                 │
-│ - Creates implementation plans                              │
-│ - Requests approvals with plan file previews                │
-│ - Stores/recovers checkpoints after crash                   │
-│ - Respects emergency stop                                   │
-└─────────────────────────────────────────────────────────────┘
+Dashboard (React/Vite)
+  │
+  │ HTTP + SSE
+  ▼
+FastAPI Backend (SQLite)
+  │
+  │ HTTP coordination
+  ▼
+Worker (Python)
+  ├─ Repo planning + execution orchestration
+  ├─ Provider adapters (Anthropic/OpenAI/Google/Ollama)
+  └─ Sandboxed tool execution + cost governance
 ```
 
-## Quick Start
+## Key Features (Current)
 
-### 0. Initialize Environment Files
+- Real-time dashboard updates through SSE
+- Approval-centric execution model with explicit human gate
+- Multi-phase orchestration with checkpoints + rollback/resume
+- Per-task model routing and provider override
+- Task-level cost reporting + budget-based stop behavior
+- Docker sandbox mode for command execution path
+- Secret redaction before logging provider/API failures
+- Dark-mode compatible theme tokens and modernized component styling
+
+## Setup
+
+### 1. Initialize env files
 
 ```bash
 cd /workspaces/mneme-command-center.
 ./env/init.sh
 ```
 
-This creates editable files:
+### 2. Configure `.env`
 
-- `.env`
-- `apps/dashboard/.env.local`
+Set at minimum:
 
-Set your secrets and provider variables there before starting services.
+- `MNEME_ADMIN_PASSWORD`
+- `MODEL_PROVIDER`
+- provider-specific keys/models as needed
+- `AGENT_BUDGET_USD` (recommended)
+- `AGENT_SANDBOX_MODE` (`process` or `docker`)
 
-### 1. Backend
+### 3. Start API
 
 ```bash
-cd apps/api
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-export MNEME_ADMIN_PASSWORD=mypassword
-python main.py
+cd /workspaces/mneme-command-center.
+set -a && source .env && set +a
+/workspaces/mneme-command-center./.venv/bin/python apps/api/main.py
 ```
 
-### 2. Dashboard
+### 4. Start dashboard
 
 ```bash
-cd apps/dashboard
+cd /workspaces/mneme-command-center./apps/dashboard
 npm install
 npm run dev
 ```
 
-Access at: `http://localhost:5173` (or `http://<laptop-ip>:5173` from phone)
-
-### 3. Worker
+### 5. Start worker
 
 ```bash
-cd /path/to/mneme-command-center
-python3 -m venv worker/venv
-source worker/venv/bin/activate
-pip install -r worker/requirements.txt
+cd /workspaces/mneme-command-center.
 set -a && source .env && set +a
-python -m worker.main
+/workspaces/mneme-command-center./.venv/bin/python -m worker.main
 ```
 
-## Acceptance Criteria - All Met! ✓
+## Test Commands
 
-- ✅ I can run backend locally
-- ✅ I can run dashboard locally
-- ✅ I can run worker locally
-- ✅ I can open dashboard from my phone on the same network
-- ✅ I can create a project
-- ✅ I can create a task
-- ✅ Worker picks up the task
-- ✅ Logs appear in dashboard
-- ✅ An approval card appears
-- ✅ I can approve or reject the plan
-- ✅ Emergency stop works
-- ✅ Dashboard updates instantly without manual refresh
-- ✅ Approval cards show file-level plan previews
-- ✅ Worker resumes from checkpoints after restart
-- ✅ Voice input can fill task description on mobile browsers
-- ✅ Task templates prefill common task shapes
-
-## New in Phase 2
-
-- Real-time updates
-  - API exposes SSE stream at /events
-  - Worker and API broadcast state-change events
-  - Dashboard auto-refreshes task, log, and approval views from events
-- Approval diff previews
-  - Worker derives structured plan_details from generated plan text
-  - Approval model stores plan_details as JSON
-  - Approval cards render collapsible file preview blocks
-- Worker checkpoints
-  - Persistent checkpoint file at /tmp/mneme_worker_state.json
-  - Worker resumes from saved planning/execution steps
-  - Checkpoint is cleared on terminal execution stage completion/failure
-- Mobile task entry improvements
-  - Microphone button uses SpeechRecognition/webkitSpeechRecognition
-  - Task templates: Refactor, Add Tests, Document, Explain Code
-
-## Full Documentation
-
-See detailed setup, API reference, database schema, and troubleshooting in [docs/SETUP.md](docs/SETUP.md)
-
-For a complete install + run playbook (including env folder usage and verification), see [docs/INSTALL_AND_RUN_MANUAL.md](docs/INSTALL_AND_RUN_MANUAL.md).
-
-## Testing
-
-Run tests with:
+### Baseline CI-equivalent checks
 
 ```bash
-/home/codespace/.python/current/bin/python -m pytest -v
+cd /workspaces/mneme-command-center.
+/workspaces/mneme-command-center./.venv/bin/python -m pytest -q
+cd apps/dashboard && npm run build
 ```
 
-By default, only local non-live tests run. To run live integration tests against a running API, set `MNEME_RUN_LIVE_TESTS=1`.
+### Full live E2E suite
+
+Run API first, then:
+
+```bash
+cd /workspaces/mneme-command-center.
+set -a && source .env && set +a
+MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /workspaces/mneme-command-center./.venv/bin/python -m pytest -v
+```
+
+## Notes
+
+- Dashboard UI harness tests are intentionally skipped in pytest (`test_dashboard_dependent_checks_are_skipped`) and require dedicated UI automation if desired.
+- For production-like hardening, keep `AGENT_BUDGET_USD` non-zero and `AGENT_SANDBOX_MODE=docker`.
+
+## Additional Documentation
+
+- [docs/SETUP.md](docs/SETUP.md)
+- [docs/INSTALL_AND_RUN_MANUAL.md](docs/INSTALL_AND_RUN_MANUAL.md)

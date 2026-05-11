@@ -1,7 +1,8 @@
 import uuid
-import jwt
 from datetime import datetime, timedelta
 from typing import Optional
+from jose import jwt
+from jose.exceptions import ExpiredSignatureError, JWTError
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -33,9 +34,9 @@ def verify_token(token: str) -> bool:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
         return True
-    except jwt.ExpiredSignatureError:
+    except ExpiredSignatureError:
         return False
-    except jwt.InvalidTokenError:
+    except JWTError:
         return False
 
 
