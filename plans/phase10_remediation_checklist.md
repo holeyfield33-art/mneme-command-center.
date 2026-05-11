@@ -21,7 +21,7 @@ This checklist tracks execution against the prioritized remediation list.
 
 ## P2 (Quality)
 
-- [ ] Premium visual design system (component library/Tailwind + dark theme + motion)
+- [x] Premium visual design system (dark mode via prefers-color-scheme, design tokens, mneme-btn utility classes, focus ring system)
 - [x] Global error handling (error boundary + user-friendly failures)
 - [x] Model switching (per-task model_provider + model_name fields, TaskForm selector, worker picks task over project default)
 
