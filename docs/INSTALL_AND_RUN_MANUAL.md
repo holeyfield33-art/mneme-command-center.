@@ -26,8 +26,8 @@ Minimum values to set in `.env`:
 MNEME_SECRET_KEY=replace-with-a-long-random-string
 MNEME_ADMIN_PASSWORD=choose-a-password
 MODEL_PROVIDER=ollama
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen2.5-coder
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=llama3.1
 ```
 
 ## 3. Install backend
@@ -59,7 +59,7 @@ pip install -r requirements.txt
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen2.5-coder
+ollama pull llama3.1
 ollama serve
 ```
 
@@ -118,6 +118,12 @@ cd /path/to/mneme-command-center
 - Network: use the URL printed by Vite, usually `http://<your-ip>:5173`
 
 Login password: `MNEME_ADMIN_PASSWORD` from `.env`.
+
+If you are using the Docker stack, bring up the full system with:
+
+```bash
+docker compose up -d api worker ollama
+```
 
 ## 10. Troubleshooting quick fixes
 

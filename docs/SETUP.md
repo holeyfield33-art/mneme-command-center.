@@ -143,7 +143,7 @@ ipconfig | findstr IPv4
 
 ### Step 5: Login
 
-Enter the password from `MNEME_ADMIN_PASSWORD` (default: `admin`)
+Enter the password from `MNEME_ADMIN_PASSWORD` in your `.env` file.
 
 ## Worker Setup
 

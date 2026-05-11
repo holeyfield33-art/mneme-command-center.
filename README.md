@@ -137,6 +137,14 @@ Set at minimum:
 - `AGENT_BUDGET_USD` (recommended)
 - `AGENT_SANDBOX_MODE` (`process` or `docker`)
 
+For the local model path, use:
+
+```env
+MODEL_PROVIDER=ollama
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=llama3.1
+```
+
 ### 3. Start API
 
 ```bash
@@ -159,6 +167,12 @@ npm run dev
 cd /workspaces/mneme-command-center.
 set -a && source .env && set +a
 /workspaces/mneme-command-center./.venv/bin/python -m worker.main
+```
+
+If you are using Docker Compose instead of native processes, start the core services with:
+
+```bash
+docker compose up -d api worker ollama
 ```
 
 ## Test Commands
