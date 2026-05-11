@@ -1,7 +1,13 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 
 export default function ApprovalCard({ approval, task, onApprove, onReject, onModify }) {
   const [showPreview, setShowPreview] = useState(false)
+  const [nowMs, setNowMs] = useState(Date.now())
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setNowMs(Date.now()), 30000)
+    return () => window.clearInterval(timerId)
+  }, [])
 
   const files = useMemo(() => {
     const maybeFiles = approval?.plan_details?.files
@@ -35,6 +41,39 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
       changedFiles: fileCount,
     }
   }, [approval, files])
+
+  const slaState = useMemo(() => {
+    const risk = (approval?.risk_level || 'medium').toLowerCase()
+    const createdAt = approval?.created_at ? new Date(approval.created_at).getTime() : null
+
+    if (!createdAt || Number.isNaN(createdAt)) {
+      return {
+        label: 'No SLA data',
+        overdue: false,
+      }
+    }
+
+    const limitHoursByRisk = {
+      low: 24,
+      medium: 8,
+      high: 2,
+    }
+
+    const limitHours = limitHoursByRisk[risk] || limitHoursByRisk.medium
+    const dueAtMs = createdAt + (limitHours * 60 * 60 * 1000)
+    const diffMs = dueAtMs - nowMs
+    const overdue = diffMs < 0
+
+    const absMinutes = Math.floor(Math.abs(diffMs) / 60000)
+    const hours = Math.floor(absMinutes / 60)
+    const minutes = absMinutes % 60
+    const timeLabel = `${hours}h ${minutes}m`
+
+    return {
+      label: overdue ? `Overdue by ${timeLabel}` : `${timeLabel} remaining`,
+      overdue,
+    }
+  }, [approval, nowMs])
 
   const riskAccent = {
     low: '#2f9e6f',
@@ -70,7 +109,7 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
           backgroundColor: '#f5f9fc',
           border: '1px solid #d9e3ec',
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(120px, 1fr))',
+          gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
           gap: '0.75rem',
         }}
       >
@@ -85,6 +124,10 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
         <div>
           <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>Changed Files</div>
           <div style={{ fontWeight: 700, color: '#223649' }}>{confidenceModel.changedFiles}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>SLA Timer</div>
+          <div style={{ fontWeight: 700, color: slaState.overdue ? '#c44236' : '#223649' }}>{slaState.label}</div>
         </div>
       </div>
 
