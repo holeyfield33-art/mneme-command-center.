@@ -6,7 +6,9 @@ Branch reviewed: feature/phase2-items-1-4
 Reviewer mode: Adversarial (external attacker + malicious authenticated user assumptions)
 
 ## Scope
+
 This review focused on attack surfaces introduced or expanded by Phase 2:
+
 - Authentication/session handling
 - Worker control and worker-facing API routes
 - Settings mutation and secret handling
@@ -14,9 +16,11 @@ This review focused on attack surfaces introduced or expanded by Phase 2:
 - Eventing and browser exposure controls
 
 ## Executive Summary
+
 The current implementation has multiple high-impact paths that can be used for unauthorized workflow manipulation, credential compromise, and persistent configuration tampering.
 
 Top risks:
+
 1. Unauthenticated worker endpoints allow direct task/workflow manipulation.
 2. Default credentials/secrets are weak and token forgery is practical in default setups.
 3. Settings persistence is vulnerable to `.env` injection via unsanitized values.
@@ -25,6 +29,7 @@ Top risks:
 ## Findings
 
 ### 1) CRITICAL: Unauthenticated worker-control API surface
+
 - Severity: Critical
 - Impact: Full workflow takeover (change task status, create approvals, inject logs, alter branch names) without login token.
 - Evidence:
@@ -48,6 +53,7 @@ Top risks:
   - Add request signing for state-changing worker callbacks.
 
 ### 2) HIGH: Insecure default auth material enables easy compromise
+
 - Severity: High
 - Impact: Account takeover and token forgery in default deployments.
 - Evidence:
@@ -66,6 +72,7 @@ Top risks:
   - Include issuer/audience checks and user claims in tokens.
 
 ### 3) HIGH: `.env` injection via unsanitized settings write path
+
 - Severity: High
 - Impact: Persistent config tampering, potential privilege persistence, service disruption.
 - Evidence:
@@ -84,6 +91,7 @@ Top risks:
   - Maintain explicit allowlist of writable keys and per-key validation patterns.
 
 ### 4) HIGH: GitHub PAT exfiltration risk in clone flow
+
 - Severity: High
 - Impact: Exposure of GitHub token to attacker-controlled host.
 - Evidence:
@@ -101,6 +109,7 @@ Top risks:
   - Reject non-HTTPS and ambiguous userinfo/host formats.
 
 ### 5) MEDIUM: Unauthenticated event endpoints allow event injection and telemetry scraping
+
 - Severity: Medium
 - Impact: UI deception, event spam/DoS, information leak of internal task/approval metadata.
 - Evidence:
@@ -113,6 +122,7 @@ Top risks:
   - Apply per-client rate limiting and event schema validation.
 
 ### 6) MEDIUM: Overly permissive CORS posture
+
 - Severity: Medium
 - Impact: Increases risk from hostile web origins if token handling changes or browser/client behavior varies; weakens trust boundary.
 - Evidence:
@@ -125,6 +135,7 @@ Top risks:
   - Separate dev/prod CORS policies.
 
 ### 7) MEDIUM: No visible brute-force protection on login
+
 - Severity: Medium
 - Impact: Password guessing and credential stuffing risk, especially with weak/default password.
 - Evidence:
@@ -133,10 +144,12 @@ Top risks:
   - Add IP+username rate limits, exponential backoff, and audit logging for failed attempts.
 
 ## Additional Observations
+
 - Worker endpoints returning broad task/project metadata can aid recon if left unauthenticated.
 - Runtime status endpoint is authenticated, which is good; continue minimizing secret-adjacent diagnostics.
 
 ## Prioritized Remediation Plan
+
 1. Lock down worker endpoints (auth/service credential + network isolation).
 2. Remove insecure defaults and enforce strong startup checks for secret/password.
 3. Fix settings persistence with strict validation and safe env serialization.
@@ -146,10 +159,12 @@ Top risks:
 7. Add auth brute-force protections.
 
 ## Suggested Verification Tests
+
 - Negative auth tests: all worker mutating routes must return 401/403 without valid credential.
 - URL validation tests: malicious repo URLs (`evil.com/...github.com/...`, userinfo tricks) must be rejected.
 - Settings injection tests: newline/control-character payloads must be rejected.
 - Security regression tests for default secret/password startup guard.
 
 ## Residual Risk if Unfixed
+
 If findings 1-4 remain open, a network-adjacent attacker or low-privilege authenticated user can materially alter workflow outcomes, tamper operator visibility, and potentially compromise GitHub credentials.

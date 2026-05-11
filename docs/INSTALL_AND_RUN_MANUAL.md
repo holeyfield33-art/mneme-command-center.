@@ -16,6 +16,7 @@ cd mneme-command-center
 ```
 
 Now edit:
+
 - `.env`
 - `apps/dashboard/.env.local`
 
@@ -73,6 +74,7 @@ curl http://localhost:11434/api/tags
 Open 3 terminals:
 
 ### Terminal A (API)
+
 ```bash
 cd /path/to/mneme-command-center/apps/api
 source venv/bin/activate
@@ -81,12 +83,14 @@ python main.py
 ```
 
 ### Terminal B (Dashboard)
+
 ```bash
 cd /path/to/mneme-command-center/apps/dashboard
 npm run dev -- --host 0.0.0.0
 ```
 
 ### Terminal C (Worker)
+
 ```bash
 cd /path/to/mneme-command-center
 source worker/venv/bin/activate

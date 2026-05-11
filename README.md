@@ -5,6 +5,7 @@ A single-user, local-first autonomous coding command center controlled from a ph
 ## Overview
 
 Mneme lets you:
+
 - Create coding/research tasks from your phone
 - Route them to a worker running on your laptop
 - Watch tasks, logs, and approvals update live through SSE
@@ -14,7 +15,7 @@ Mneme lets you:
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                   Dashboard (React/Vite)                     │
 │                   - List projects & tasks                    │
@@ -50,18 +51,21 @@ Mneme lets you:
 ## Quick Start
 
 ### 0. Initialize Environment Files
+
 ```bash
 cd /workspaces/mneme-command-center.
 ./env/init.sh
 ```
 
 This creates editable files:
+
 - `.env`
 - `apps/dashboard/.env.local`
 
 Set your secrets and provider variables there before starting services.
 
 ### 1. Backend
+
 ```bash
 cd apps/api
 python3 -m venv venv
@@ -72,6 +76,7 @@ python main.py
 ```
 
 ### 2. Dashboard
+
 ```bash
 cd apps/dashboard
 npm install
@@ -81,6 +86,7 @@ npm run dev
 Access at: `http://localhost:5173` (or `http://<laptop-ip>:5173` from phone)
 
 ### 3. Worker
+
 ```bash
 cd /path/to/mneme-command-center
 python3 -m venv worker/venv
@@ -112,20 +118,20 @@ python -m worker.main
 ## New in Phase 2
 
 - Real-time updates
-    - API exposes SSE stream at /events
-    - Worker and API broadcast state-change events
-    - Dashboard auto-refreshes task, log, and approval views from events
+  - API exposes SSE stream at /events
+  - Worker and API broadcast state-change events
+  - Dashboard auto-refreshes task, log, and approval views from events
 - Approval diff previews
-    - Worker derives structured plan_details from generated plan text
-    - Approval model stores plan_details as JSON
-    - Approval cards render collapsible file preview blocks
+  - Worker derives structured plan_details from generated plan text
+  - Approval model stores plan_details as JSON
+  - Approval cards render collapsible file preview blocks
 - Worker checkpoints
-    - Persistent checkpoint file at /tmp/mneme_worker_state.json
-    - Worker resumes from saved planning/execution steps
-    - Checkpoint is cleared on terminal execution stage completion/failure
+  - Persistent checkpoint file at /tmp/mneme_worker_state.json
+  - Worker resumes from saved planning/execution steps
+  - Checkpoint is cleared on terminal execution stage completion/failure
 - Mobile task entry improvements
-    - Microphone button uses SpeechRecognition/webkitSpeechRecognition
-    - Task templates: Refactor, Add Tests, Document, Explain Code
+  - Microphone button uses SpeechRecognition/webkitSpeechRecognition
+  - Task templates: Refactor, Add Tests, Document, Explain Code
 
 ## Full Documentation
 

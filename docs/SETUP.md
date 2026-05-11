@@ -1,6 +1,7 @@
 # Mneme Command Center - Complete Setup Guide
 
 ## Table of Contents
+
 1. [Prerequisites](#prerequisites)
 2. [Backend Setup](#backend-setup)
 3. [Dashboard Setup](#dashboard-setup)
@@ -31,6 +32,7 @@ cd /workspaces/mneme-command-center.
 ```
 
 This creates:
+
 - `.env` (API + worker configuration)
 - `apps/dashboard/.env.local` (dashboard API URL)
 
@@ -81,7 +83,8 @@ python main.py
 ```
 
 Output:
-```
+
+```text
 INFO:     Uvicorn running on http://0.0.0.0:8000
 ```
 
@@ -105,7 +108,7 @@ npm install
 
 Create `.env.local`:
 
-```
+```text
 VITE_API_URL=http://localhost:8000
 ```
 
@@ -116,7 +119,8 @@ npm run dev
 ```
 
 Output:
-```
+
+```text
   VITE v5.0.8  ready in 123 ms
   ➜  Local:   http://localhost:5173/
   ➜  Network: use --host to expose
@@ -128,6 +132,7 @@ Output:
 - **From phone**: `http://<your-laptop-ip>:5173`
 
 Find your laptop IP:
+
 ```bash
 # macOS/Linux
 ifconfig | grep "inet " | grep -v 127.0.0.1
@@ -142,7 +147,7 @@ Enter the password from `MNEME_ADMIN_PASSWORD` (default: `admin`)
 
 ## Worker Setup
 
-### Step 1: Create Virtual Environment
+### Worker Step 1: Create Virtual Environment
 
 ```bash
 cd worker
@@ -150,13 +155,13 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-### Step 2: Install Dependencies
+### Worker Step 2: Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 3: Configure Environment
+### Worker Step 3: Configure Environment
 
 ```bash
 export MNEME_API_URL=http://localhost:8000
@@ -187,7 +192,8 @@ python -m worker.main
 ```
 
 Output:
-```
+
+```text
 [INFO] Mneme Worker started
 [INFO] Worker ID: worker-1
 [INFO] Hostname: my-laptop
@@ -232,6 +238,7 @@ ollama serve
 ```
 
 Verify it is running:
+
 ```bash
 curl http://localhost:11434/api/tags
 # Should return a JSON list of installed models
@@ -294,10 +301,7 @@ MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /home/codespace/.python/current/
 ### Complete Workflow
 
 1. **Login to Dashboard**
-   ```
-   http://localhost:5173 (on laptop) 
-   http://192.168.1.100:5173 (on phone)
-   ```
+  Use `http://localhost:5173` on laptop and `http://192.168.1.100:5173` on phone.
 
 2. **Create a Project**
    - Navigate to "Projects" tab
@@ -361,7 +365,7 @@ MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /home/codespace/.python/current/
 ### Approvals Queue (`/approvals`)
 
 | Feature | Description |
-|---|---|
+| --- | --- |
 | **SLA Timer** | Live countdown per approval based on risk level (High: 2h, Medium: 8h, Low: 24h) |
 | **Urgency Sort** | High-risk approvals always appear first, then oldest-first within each tier |
 | **Queue Summary** | Strip above the queue showing total / high / medium / low counts |
@@ -376,7 +380,7 @@ MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /home/codespace/.python/current/
 ### Project Detail (`/projects/:id`)
 
 | Feature | Description |
-|---|---|
+| --- | --- |
 | **Task Pipeline Graph** | SVG DAG showing all tasks in creation order with status colours, approval gate diamonds, and click-to-navigate |
 | **Model Override** | Set a per-project provider (anthropic / openai / google / ollama) and model name that overrides the global default |
 
@@ -390,7 +394,8 @@ MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /home/codespace/.python/current/
 ### Authentication
 
 All requests except `/auth/login` and `/worker/heartbeat` require:
-```
+
+```text
 Authorization: Bearer <token>
 ```
 
@@ -406,6 +411,7 @@ Content-Type: application/json
 ```
 
 Response:
+
 ```json
 {
   "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
@@ -415,13 +421,15 @@ Response:
 
 ### Projects
 
-**List**
+#### Projects: List
+
 ```http
 GET /projects
 Authorization: Bearer <token>
 ```
 
-**Create**
+#### Projects: Create
+
 ```http
 POST /projects
 Authorization: Bearer <token>
@@ -435,13 +443,15 @@ Content-Type: application/json
 }
 ```
 
-**Get**
+#### Projects: Get
+
 ```http
 GET /projects/{id}
 Authorization: Bearer <token>
 ```
 
-**Update**
+#### Projects: Update
+
 ```http
 PUT /projects/{id}
 Authorization: Bearer <token>
@@ -452,7 +462,8 @@ Content-Type: application/json
 }
 ```
 
-**Delete**
+#### Projects: Delete
+
 ```http
 DELETE /projects/{id}
 Authorization: Bearer <token>
@@ -460,13 +471,15 @@ Authorization: Bearer <token>
 
 ### Tasks
 
-**List**
+#### Tasks: List
+
 ```http
 GET /tasks?project_id={id}&status=queued
 Authorization: Bearer <token>
 ```
 
-**Create**
+#### Tasks: Create
+
 ```http
 POST /tasks
 Authorization: Bearer <token>
@@ -480,13 +493,15 @@ Content-Type: application/json
 }
 ```
 
-**Get**
+#### Tasks: Get
+
 ```http
 GET /tasks/{id}
 Authorization: Bearer <token>
 ```
 
-**Update Status**
+#### Tasks: Update Status
+
 ```http
 PUT /tasks/{id}/status?new_status=planning
 Authorization: Bearer <token>
@@ -494,7 +509,8 @@ Authorization: Bearer <token>
 
 ### Logs
 
-**Add Log**
+#### Logs: Add Log
+
 ```http
 POST /tasks/{id}/logs
 Authorization: Bearer <token>
@@ -506,7 +522,8 @@ Content-Type: application/json
 }
 ```
 
-**Get Logs**
+#### Logs: Get Logs
+
 ```http
 GET /tasks/{id}/logs
 Authorization: Bearer <token>
@@ -514,19 +531,22 @@ Authorization: Bearer <token>
 
 ### Approvals
 
-**List**
+#### Approvals: List
+
 ```http
 GET /approvals?status=pending
 Authorization: Bearer <token>
 ```
 
-**Approve**
+#### Approvals: Approve
+
 ```http
 POST /approvals/{id}/approve
 Authorization: Bearer <token>
 ```
 
-**Reject**
+#### Approvals: Reject
+
 ```http
 POST /approvals/{id}/reject
 Authorization: Bearer <token>
@@ -534,7 +554,8 @@ Authorization: Bearer <token>
 
 ### Worker
 
-**Heartbeat**
+#### Worker: Heartbeat
+
 ```http
 POST /worker/heartbeat
 Content-Type: application/json
@@ -545,32 +566,37 @@ Content-Type: application/json
 }
 ```
 
-**Get Status**
+#### Worker: Get Status
+
 ```http
 GET /worker/status
 Authorization: Bearer <token>
 ```
 
-**Get Queued Tasks**
+#### Worker: Get Queued Tasks
+
 ```http
 GET /worker/tasks/queued
 ```
 
 ### System
 
-**Emergency Stop**
+#### System: Emergency Stop
+
 ```http
 POST /system/emergency-stop
 Authorization: Bearer <token>
 ```
 
-**Clear Emergency Stop**
+#### System: Clear Emergency Stop
+
 ```http
 POST /system/emergency-stop/clear
 Authorization: Bearer <token>
 ```
 
-**Get Status**
+#### System: Get Status
+
 ```http
 GET /system/emergency-stop/status
 Authorization: Bearer <token>
@@ -611,7 +637,8 @@ CREATE TABLE tasks (
 );
 ```
 
-**Status Values:** 
+**Status Values:**
+
 - `queued` - Waiting for worker
 - `planning` - Worker is analyzing
 - `waiting_for_plan_approval` - Awaiting user decision
@@ -677,6 +704,7 @@ CREATE TABLE system_state (
 ```
 
 **Keys:**
+
 - `emergency_stop` - `true` or `false`
 
 ## Troubleshooting
@@ -686,6 +714,7 @@ CREATE TABLE system_state (
 **Error:** `Port 8000 already in use`
 
 Solution:
+
 ```bash
 # Find and kill process using port 8000
 lsof -i :8000
@@ -700,12 +729,14 @@ export MNEME_API_PORT=8001
 **Symptom:** Errors when logging in or loading data
 
 **Check:**
+
 1. API is running: `curl http://localhost:8000/health`
 2. From phone: Use laptop IP, not `localhost`
 3. Both on same network
 4. Firewall allows port 8000
 
 **Fix:**
+
 ```bash
 # Find laptop IP
 ifconfig | grep "inet "
@@ -717,11 +748,13 @@ http://192.168.1.100:8000  # Replace with your IP
 ### Worker Not Processing Tasks
 
 **Check:**
+
 1. Worker is running
 2. Worker logs show: `[INFO] Heartbeat sent`
 3. No emergency stop active
 
 **Debug:**
+
 ```bash
 # Restart worker with verbose output
 python -u main.py
@@ -735,6 +768,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:8000/worker/status
 **Error:** `sqlite3.DatabaseError: database is locked`
 
 Solution:
+
 ```bash
 # Restart everything
 # Kill all processes
@@ -750,6 +784,7 @@ cd apps/api && python main.py
 **Cause:** Token expired or secret key changed
 
 **Fix:**
+
 1. Log out (clear localStorage)
 2. Log in again
 3. Get new token
@@ -757,11 +792,13 @@ cd apps/api && python main.py
 ### Task Stuck in Planning
 
 **Check:**
+
 1. Worker hasn't crashed
 2. No errors in worker logs
 3. Try creating a new task
 
 **Debug:**
+
 ```bash
 # View task and its logs
 curl -H "Authorization: Bearer <token>" http://localhost:8000/tasks/<id>
@@ -771,6 +808,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:8000/tasks/<id>/logs
 ### Phone Can't Access Dashboard
 
 **Troubleshoot:**
+
 1. Get laptop IP: `ifconfig | grep inet | grep -v 127`
 2. Ping from phone: `ping <laptop-ip>`
 3. Try: `http://<laptop-ip>:5173`
