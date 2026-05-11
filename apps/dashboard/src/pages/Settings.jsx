@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { system } from '../api'
 
 const PROVIDERS = ['anthropic', 'openai', 'google', 'ollama']
@@ -44,6 +45,7 @@ function Field({ label, name, value, onChange, type = 'text', placeholder = '' }
 }
 
 export default function Settings() {
+  const navigate = useNavigate()
   const [status, setStatus] = useState(null)
   const [form, setForm] = useState({
     MODEL_PROVIDER: 'anthropic',
@@ -64,9 +66,12 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [loadingStatus, setLoadingStatus] = useState(false)
 
-  useEffect(() => {
-    system.getRuntimeStatus().then(r => {
+  const loadRuntimeStatus = async () => {
+    setLoadingStatus(true)
+    try {
+      const r = await system.getRuntimeStatus()
       setStatus(r.data)
       const d = r.data
       setForm(f => ({
@@ -79,7 +84,15 @@ export default function Settings() {
         OLLAMA_MODEL: d.available_providers?.ollama?.model || '',
         NOTIFICATIONS_ENABLED: d.notifications_enabled ? 'true' : 'false',
       }))
-    }).catch(() => {})
+    } catch (_err) {
+      // Keep existing values on transient load failures.
+    } finally {
+      setLoadingStatus(false)
+    }
+  }
+
+  useEffect(() => {
+    loadRuntimeStatus()
   }, [])
 
   const handleChange = e => {
@@ -94,6 +107,7 @@ export default function Settings() {
       // Only send non-empty values so we don't overwrite keys we haven't loaded
       const payload = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== ''))
       await system.updateSettings(payload)
+      await loadRuntimeStatus()
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err) {
@@ -104,10 +118,39 @@ export default function Settings() {
   }
 
   const provider = form.MODEL_PROVIDER
+  const providerHealth = status?.available_providers?.[provider]?.health
+
+  const setRecommendedModel = () => {
+    const recommended = {
+      anthropic: 'claude-sonnet-4-5',
+      openai: 'gpt-4o',
+      google: 'gemini-2.5-flash',
+      ollama: 'qwen2.5-coder',
+    }[provider]
+    if (!recommended) return
+
+    if (provider === 'anthropic') setForm(f => ({ ...f, ANTHROPIC_MODEL: recommended }))
+    if (provider === 'openai') setForm(f => ({ ...f, OPENAI_MODEL: recommended }))
+    if (provider === 'google') setForm(f => ({ ...f, GOOGLE_MODEL: recommended }))
+    if (provider === 'ollama') setForm(f => ({ ...f, OLLAMA_MODEL: recommended }))
+  }
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '2rem 1rem' }}>
-      <h1 style={{ marginBottom: '1.5rem' }}>⚙️ Settings</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        <h1 style={{ margin: 0 }}>⚙️ Settings</h1>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={loadRuntimeStatus} disabled={loadingStatus} style={btnStyle('#0d6efd')}>
+            {loadingStatus ? 'Refreshing…' : 'Refresh Health'}
+          </button>
+          <button onClick={() => navigate('/setup')} style={btnStyle('#6c757d')}>
+            Open Setup Wizard
+          </button>
+        </div>
+      </div>
+      <p style={{ marginTop: 0, color: '#666', marginBottom: '1.5rem' }}>
+        Configure providers, GitHub access, and notifications. These settings apply globally.
+      </p>
 
       {/* AI Provider */}
       <div style={sectionStyle}>
@@ -117,6 +160,14 @@ export default function Settings() {
           <select name="MODEL_PROVIDER" value={form.MODEL_PROVIDER} onChange={handleChange} style={inputStyle}>
             {PROVIDERS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
           </select>
+        </div>
+        <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button onClick={setRecommendedModel} style={btnStyle('#6f42c1')}>
+            Use Recommended Model
+          </button>
+          <span style={{ fontSize: 12, color: '#666' }}>
+            Provider health: {providerHealth?.status || 'unknown'}{providerHealth?.error ? ` (${providerHealth.error})` : ''}
+          </span>
         </div>
 
         {provider === 'anthropic' && (
@@ -130,6 +181,10 @@ export default function Settings() {
             </div>
             <p style={{ fontSize: 12, color: '#666', margin: 0 }}>
               Status: {status?.available_providers?.anthropic?.configured ? '✅ Key configured' : '❌ No key set'}
+            </p>
+            <p style={{ fontSize: 12, color: '#666', margin: '0.35rem 0 0' }}>
+              Health: {status?.available_providers?.anthropic?.health?.status || 'unknown'}
+              {status?.available_providers?.anthropic?.health?.error ? ` (${status.available_providers.anthropic.health.error})` : ''}
             </p>
           </>
         )}
@@ -146,6 +201,10 @@ export default function Settings() {
             <p style={{ fontSize: 12, color: '#666', margin: 0 }}>
               Status: {status?.available_providers?.openai?.configured ? '✅ Key configured' : '❌ No key set'}
             </p>
+            <p style={{ fontSize: 12, color: '#666', margin: '0.35rem 0 0' }}>
+              Health: {status?.available_providers?.openai?.health?.status || 'unknown'}
+              {status?.available_providers?.openai?.health?.error ? ` (${status.available_providers.openai.health.error})` : ''}
+            </p>
           </>
         )}
 
@@ -161,6 +220,10 @@ export default function Settings() {
             <p style={{ fontSize: 12, color: '#666', margin: 0 }}>
               Status: {status?.available_providers?.google?.configured ? '✅ Key configured' : '❌ No key set'}
             </p>
+            <p style={{ fontSize: 12, color: '#666', margin: '0.35rem 0 0' }}>
+              Health: {status?.available_providers?.google?.health?.status || 'unknown'}
+              {status?.available_providers?.google?.health?.error ? ` (${status.available_providers.google.health.error})` : ''}
+            </p>
           </>
         )}
 
@@ -174,6 +237,10 @@ export default function Settings() {
               </select>
             </div>
             <p style={{ fontSize: 12, color: '#666', margin: 0 }}>Free &amp; local — requires Ollama running on this machine.</p>
+            <p style={{ fontSize: 12, color: '#666', margin: '0.35rem 0 0' }}>
+              Health: {status?.available_providers?.ollama?.health?.status || 'unknown'}
+              {status?.available_providers?.ollama?.health?.error ? ` (${status.available_providers.ollama.health.error})` : ''}
+            </p>
           </>
         )}
       </div>

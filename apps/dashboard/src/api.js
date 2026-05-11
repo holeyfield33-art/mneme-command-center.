@@ -44,8 +44,28 @@ export const tasks = {
   getLogs: (id) => apiClient.get(`/tasks/${id}/logs`),
   rerunClaude: (id) => apiClient.post(`/tasks/${id}/rerun-claude`),
   getArtifact: (id, artifactType) => apiClient.get(`/tasks/${id}/artifacts/${artifactType}`),
+  getGithubPrStatus: (id) => apiClient.get(`/tasks/${id}/github-pr-status`),
   addLog: (id, level, message) => apiClient.post(`/tasks/${id}/logs`, { level, message }),
-  updateStatus: (id, status) => apiClient.put(`/tasks/${id}/status`, null, { params: { new_status: status } })
+  updateStatus: (id, status) => apiClient.put(`/tasks/${id}/status`, null, { params: { new_status: status } }),
+  enableOrchestration: (id) => apiClient.post(`/tasks/${id}/orchestration/enable`),
+  startOrchestrationPhase: (id, phaseType, context = {}) =>
+    apiClient.post(`/tasks/${id}/orchestration/start-phase`, context, { params: { phase_type: phaseType } }),
+  orchestrationInitialize: (id) => apiClient.post(`/api/v1/tasks/${id}/orchestration/initialize`),
+  orchestrationPhases: (id) => apiClient.get(`/api/v1/tasks/${id}/orchestration/phases`),
+  orchestrationStatus: (id) => apiClient.get(`/api/v1/tasks/${id}/orchestration/status`),
+  orchestrationLog: (id, limit = 50, offset = 0) =>
+    apiClient.get(`/api/v1/tasks/${id}/orchestration/log`, { params: { limit, offset } }),
+  orchestrationCheckpoints: (id) => apiClient.get(`/api/v1/tasks/${id}/orchestration/checkpoints`),
+  orchestrationRollback: (id, fromPhase) =>
+    apiClient.post(`/api/v1/tasks/${id}/orchestration/rollback`, null, {
+      params: fromPhase ? { from_phase: fromPhase } : undefined,
+    }),
+  orchestrationResume: (id, checkpointId) =>
+    apiClient.post(`/api/v1/tasks/${id}/orchestration/resume`, { checkpoint_id: checkpointId }),
+  orchestrationCompletePhase: (id, phaseType, output = {}) =>
+    apiClient.post(`/api/v1/tasks/${id}/orchestration/phases/${phaseType}/complete`, output),
+  orchestrationFailPhase: (id, phaseType, error) =>
+    apiClient.post(`/api/v1/tasks/${id}/orchestration/phases/${phaseType}/fail`, null, { params: { error } }),
 }
 
 export const approvals = {
@@ -73,7 +93,17 @@ export const system = {
   clearEmergencyStop: () => apiClient.post('/system/emergency-stop/clear'),
   getEmergencyStopStatus: () => apiClient.get('/system/emergency-stop/status'),
   getRuntimeStatus: () => apiClient.get('/system/runtime-status'),
-  updateSettings: (data) => apiClient.put('/system/settings', data)
+  updateSettings: (data) => apiClient.put('/system/settings', data),
+  getAuditEvents: (limit = 50) => apiClient.get('/api/v1/audit/events', { params: { limit } }),
+  getVaultStatus: () => apiClient.get('/api/v1/vault/status')
+}
+
+export const skills = {
+  list: (params = {}) => apiClient.get('/api/v1/skills', { params }),
+  create: (data) => apiClient.post('/api/v1/skills', data),
+  update: (id, data) => apiClient.put(`/api/v1/skills/${id}`, data),
+  toggle: (id) => apiClient.post(`/api/v1/skills/${id}/toggle`),
+  remove: (id) => apiClient.delete(`/api/v1/skills/${id}`)
 }
 
 export default apiClient

@@ -5,14 +5,36 @@ from datetime import datetime
 
 from ..database import get_db
 from ..events import broadcast_now
-from ..models import Approval, ApprovalStatus, ApprovalType, Task, TaskStatus, Project
+from ..models import Approval, ApprovalStatus, ApprovalType, Task, TaskStatus, Project, Log, LogLevel
 from ..workflow import status_after_approval
 from ..utils import generate_id, verify_token
 from ..notifier import ApiNotifier
+from ..config import settings
+from ..security.vault import vault_service
 from .auth import verify_token_header
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 notifier = ApiNotifier()
+
+
+def _add_task_log(db: Session, task_id: str, level: LogLevel, message: str) -> None:
+    log = Log(
+        id=generate_id(),
+        task_id=task_id,
+        level=level,
+        message=message,
+    )
+    db.add(log)
+    db.flush()
+    broadcast_now(
+        "task_log_added",
+        {
+            "task_id": task_id,
+            "log_id": log.id,
+            "level": log.level.value,
+            "message": log.message,
+        },
+    )
 
 
 class ApprovalResponse(BaseModel):
@@ -105,21 +127,56 @@ def approve_approval(
 
             # Auto-create GitHub PR if token and repo_url are available
             if project and project.repo_url and task.branch_name:
-                from ..config import settings
-                from worker.github_client import create_pull_request
+                from worker.github_client import create_pull_request, push_branch
+                from pathlib import Path
 
-                token = settings.github_token
+                try:
+                    token = vault_service.maybe_resolve_secret(settings.github_token)
+                except RuntimeError:
+                    token = ""
+                    _add_task_log(db, task.id, LogLevel.WARNING, "GitHub PR skipped: vault is locked for secret token")
+
                 if token:
-                    pr_ok, pr_result = create_pull_request(
-                        repo_url=project.repo_url,
-                        token=token,
-                        branch=task.branch_name,
-                        title=f"[Mneme] {task.objective[:72]}",
-                        body=f"Automated changes by Mneme for task `{task.id}`.\n\n**Objective:** {task.objective}",
-                        base_branch=project.default_branch or "main",
-                    )
-                    if pr_ok:
-                        notifier.send(f"GitHub PR created: {pr_result}")
+                    if settings.require_reauth_for_remote_push and not vault_service.has_recent_reauth():
+                        _add_task_log(
+                            db,
+                            task.id,
+                            LogLevel.WARNING,
+                            "GitHub PR skipped: recent vault re-auth required before remote push",
+                        )
+                    else:
+                        _add_task_log(
+                            db,
+                            task.id,
+                            LogLevel.INFO,
+                            f"GitHub PR attempt: repo={project.repo_url}, base={project.default_branch or 'main'}, branch={task.branch_name}",
+                        )
+
+                        push_ok, push_result = push_branch(Path(project.repo_path), task.branch_name)
+                        if push_ok:
+                            _add_task_log(db, task.id, LogLevel.INFO, f"GitHub branch push: success ({task.branch_name})")
+                        else:
+                            _add_task_log(db, task.id, LogLevel.WARNING, f"GitHub branch push: failed ({push_result})")
+
+                        pr_ok, pr_result = create_pull_request(
+                            repo_url=project.repo_url,
+                            token=token,
+                            branch=task.branch_name,
+                            title=f"[Mneme] {task.objective[:72]}",
+                            body=f"Automated changes by Mneme for task `{task.id}`.\n\n**Objective:** {task.objective}",
+                            base_branch=project.default_branch or "main",
+                        )
+                        if pr_ok:
+                            _add_task_log(db, task.id, LogLevel.INFO, f"GitHub PR status: created")
+                            _add_task_log(db, task.id, LogLevel.INFO, f"GitHub PR URL: {pr_result}")
+                            notifier.send(f"GitHub PR created: {pr_result}")
+                        else:
+                            _add_task_log(db, task.id, LogLevel.WARNING, "GitHub PR status: failed")
+                            _add_task_log(db, task.id, LogLevel.WARNING, f"GitHub PR error: {pr_result}")
+                else:
+                    _add_task_log(db, task.id, LogLevel.WARNING, "GitHub PR skipped: GITHUB_TOKEN not configured")
+            else:
+                _add_task_log(db, task.id, LogLevel.WARNING, "GitHub PR skipped: missing repo_url or branch_name")
     
     db.commit()
     db.refresh(approval)

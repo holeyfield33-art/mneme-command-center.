@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { approvals, tasks, system } from '../api'
+import { useLayers } from '../context/LayerContext'
 
 export default function TaskDetail() {
   const { taskId } = useParams()
   const navigate = useNavigate()
+  const { showModal } = useLayers()
   const [task, setTask] = useState(null)
   const [logs, setLogs] = useState([])
   const [taskApprovals, setTaskApprovals] = useState([])
@@ -17,6 +19,22 @@ export default function TaskDetail() {
   const [artifactError, setArtifactError] = useState('')
   const [loadingArtifact, setLoadingArtifact] = useState(false)
   const [rerunLoading, setRerunLoading] = useState(false)
+  const [prStatusLoading, setPrStatusLoading] = useState(false)
+  const [prStatus, setPrStatus] = useState(null)
+  const [lastPrRefreshAt, setLastPrRefreshAt] = useState(null)
+
+  const refreshPrStatus = useCallback(async () => {
+    setPrStatusLoading(true)
+    try {
+      const prStatusRes = await tasks.getGithubPrStatus(taskId)
+      setPrStatus(prStatusRes.data)
+      setLastPrRefreshAt(new Date())
+    } catch (_err) {
+      setPrStatus(null)
+    } finally {
+      setPrStatusLoading(false)
+    }
+  }, [taskId])
 
   const loadTask = useCallback(async () => {
     try {
@@ -32,13 +50,14 @@ export default function TaskDetail() {
 
       const approvalsRes = await approvals.list(undefined, taskId)
       setTaskApprovals(approvalsRes.data)
+      await refreshPrStatus()
     } catch (err) {
       setError('Failed to load task')
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }, [taskId])
+  }, [taskId, refreshPrStatus])
 
   useEffect(() => {
     loadTask()
@@ -59,6 +78,18 @@ export default function TaskDetail() {
   useEffect(() => {
     loadArtifact(artifactType)
   }, [taskId, artifactType])
+
+  useEffect(() => {
+    if (!prStatus?.pr_url) {
+      return
+    }
+
+    const timer = setInterval(() => {
+      refreshPrStatus()
+    }, 20000)
+
+    return () => clearInterval(timer)
+  }, [prStatus?.pr_url, refreshPrStatus])
 
   const loadArtifact = async (selectedType) => {
     setLoadingArtifact(true)
@@ -138,6 +169,12 @@ export default function TaskDetail() {
   const claudeArtifacts = findLogValue('Claude artifacts written:')
   const diffSummaryPath = findLogValue('Diff summary generated:')
   const changedFiles = findLogValue('Changed files:')
+  const latestPrUrl = findLogValue('GitHub PR URL:')
+  const latestPrStatus = findLogValue('GitHub PR status:')
+  const latestPrError = findLogValue('GitHub PR error:')
+  const latestPrAttempt = findLogValue('GitHub PR attempt:')
+
+  const prLogEntries = logs.filter(log => (log.message || '').startsWith('GitHub PR '))
 
   const testLogEntries = logs.filter(log => (log.message || '').startsWith('Test command `'))
   const notificationLogEntries = logs.filter(log => (log.message || '').startsWith('Notification '))
@@ -158,6 +195,21 @@ export default function TaskDetail() {
         }}
       >
         ← Back
+      </button>
+      <button
+        onClick={() => showModal('layer2', { taskId })}
+        style={{
+          marginBottom: '1rem',
+          marginLeft: '0.6rem',
+          padding: '0.5rem 1rem',
+          backgroundColor: '#2c3e50',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+      >
+        View Workflow Graph
       </button>
 
       {error && <div style={{ color: 'red', marginBottom: '1rem', padding: '1rem', backgroundColor: '#ffe6e6', borderRadius: '4px' }}>{error}</div>}
@@ -235,18 +287,18 @@ export default function TaskDetail() {
                 fontWeight: 'bold'
               }}
             >
-              {rerunLoading ? 'Queueing...' : 'Rerun with Claude'}
+              {rerunLoading ? 'Queueing...' : 'Rerun Execution'}
             </button>
           </div>
         )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-          <div><strong>Claude Prompt Path:</strong> {claudePromptPath || 'N/A'}</div>
-          <div><strong>Claude Artifacts:</strong> {claudeArtifacts || 'N/A'}</div>
+          <div><strong>Agent Prompt Path:</strong> {claudePromptPath || 'N/A'}</div>
+          <div><strong>Agent Artifacts:</strong> {claudeArtifacts || 'N/A'}</div>
           <div><strong>Diff Summary Path:</strong> {diffSummaryPath || 'N/A'}</div>
-          <div><strong>Claude Execution Required:</strong> {runtimeStatus?.claude_execution_required ? 'yes' : 'no'}</div>
-          <div><strong>Claude Command Configured:</strong> {runtimeStatus?.claude_command_configured ? 'yes' : 'no'}</div>
-          <div><strong>Claude Key Configured:</strong> {runtimeStatus?.anthropic_api_key_configured ? 'yes' : 'no (CLI session mode)'}</div>
-          <div><strong>Claude Max Retries:</strong> {runtimeStatus?.claude_code_max_retries ?? 'N/A'}</div>
+          <div><strong>Active Model Provider:</strong> {runtimeStatus?.model_provider || 'N/A'}</div>
+          <div><strong>Legacy CLI Command Configured:</strong> {runtimeStatus?.claude_command_configured ? 'yes' : 'no'}</div>
+          <div><strong>Active Provider Key Configured:</strong> {runtimeStatus?.model_provider_key_configured ? 'yes' : 'no'}</div>
+          <div><strong>Execution Max Retries:</strong> {runtimeStatus?.claude_code_max_retries ?? 'N/A'}</div>
         </div>
         <div style={{ marginTop: '1rem' }}>
           <p><strong>Changed Files:</strong> {changedFiles || 'N/A'}</p>
@@ -255,6 +307,89 @@ export default function TaskDetail() {
             {latestDiffApproval ? `${latestDiffApproval.status} (${latestDiffApproval.risk_level})` : 'none'}
           </p>
           <p><strong>Latest Notification Status:</strong> {latestNotification ? latestNotification.message : 'N/A'}</p>
+        </div>
+
+        <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: 'white', borderRadius: '4px', border: '1px solid #e5e5e5' }}>
+          <strong>GitHub Pull Request Metadata</strong>
+          <p><strong>Latest PR Attempt:</strong> {latestPrAttempt || 'N/A'}</p>
+          <p><strong>Latest PR Status:</strong> {latestPrStatus || 'N/A'}</p>
+          <p>
+            <strong>Latest PR URL:</strong>{' '}
+            {latestPrUrl ? (
+              <a href={latestPrUrl} target="_blank" rel="noreferrer">{latestPrUrl}</a>
+            ) : 'N/A'}
+          </p>
+          <p><strong>Latest PR Error:</strong> {latestPrError || 'N/A'}</p>
+          <div>
+            <strong>PR Event Logs:</strong>
+            {prLogEntries.length === 0 ? (
+              <p>No PR logs yet.</p>
+            ) : (
+              <ul>
+                {prLogEntries.map(log => (
+                  <li key={log.id}>{new Date(log.created_at).toLocaleTimeString()} - {log.message}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div style={{ marginTop: '0.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <strong>Live PR Status</strong>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button
+                  onClick={refreshPrStatus}
+                  disabled={prStatusLoading}
+                  style={{
+                    padding: '0.4rem 0.7rem',
+                    backgroundColor: '#0d6efd',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {prStatusLoading ? 'Refreshing...' : 'Refresh'}
+                </button>
+                <span style={{ fontSize: '0.8rem', color: '#666' }}>
+                  Auto-refresh every 20s{lastPrRefreshAt ? ` · Last ${lastPrRefreshAt.toLocaleTimeString()}` : ''}
+                </span>
+              </div>
+            </div>
+
+            {prStatusLoading ? (
+              <p>Refreshing PR status...</p>
+            ) : !prStatus ? (
+              <p>Unavailable</p>
+            ) : prStatus.status !== 'ok' ? (
+              <p>
+                {prStatus.status}
+                {prStatus.error ? ` - ${prStatus.error}` : ''}
+              </p>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', margin: '0.5rem 0' }}>
+                  <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', backgroundColor: prStatus.pr.state === 'open' ? '#e7f3ff' : '#f0f0f0' }}>
+                    State: {prStatus.pr.state}
+                  </span>
+                  <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', backgroundColor: prStatus.pr.merged ? '#e8f8ec' : '#fff4e5' }}>
+                    Merged: {String(prStatus.pr.merged)}
+                  </span>
+                  <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', backgroundColor: prStatus.pr.draft ? '#fff4e5' : '#eef6ff' }}>
+                    Draft: {String(prStatus.pr.draft)}
+                  </span>
+                  <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', backgroundColor: '#f5f5f5' }}>
+                    Mergeable: {String(prStatus.pr.mergeable)}
+                  </span>
+                </div>
+                <p style={{ margin: '0.35rem 0' }}><strong>Head:</strong> {prStatus.pr.head}</p>
+                <p style={{ margin: '0.35rem 0' }}><strong>Base:</strong> {prStatus.pr.base}</p>
+                <p style={{ margin: '0.35rem 0' }}>
+                  <strong>URL:</strong> <a href={prStatus.pr.url} target="_blank" rel="noreferrer">{prStatus.pr.url}</a>
+                </p>
+              </div>
+            )}
+          </div>
         </div>
         <div>
           <strong>Test Results:</strong>

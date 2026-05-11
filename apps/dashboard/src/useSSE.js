@@ -55,6 +55,10 @@ export default function useSSE() {
         'task_log_added',
         'approval_created',
         'approval_updated',
+        'orchestration_enabled',
+        'phase_started',
+        'phase_completed',
+        'phase_failed',
       ]
 
       eventTypes.forEach((eventType) => {

@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { LayerProvider } from './context/LayerContext'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import Projects from './pages/Projects'
@@ -10,6 +11,10 @@ import Approvals from './pages/Approvals'
 import useSSE from './useSSE'
 import Settings from './pages/Settings'
 import SetupWizard from './pages/SetupWizard'
+import ApprovalHub from './components/ApprovalHub'
+import ActivityFeed from './components/ActivityFeed'
+import WorkflowCanvas from './components/WorkflowCanvas'
+import ControlRoom from './components/ControlRoom'
 
 function Layout({ children }) {
   const navigate = useNavigate()
@@ -21,7 +26,7 @@ function Layout({ children }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', paddingBottom: '24rem' }}>
       <nav style={{
         backgroundColor: '#2c3e50',
         color: 'white',
@@ -75,6 +80,14 @@ function Layout({ children }) {
         </button>
       </nav>
       {children}
+      {/* Layer 0: Always-visible Approval Hub */}
+      <ApprovalHub />
+      {/* Layer 1: Activity Feed */}
+      <ActivityFeed />
+      {/* Layer 2: Workflow Canvas Modal */}
+      <WorkflowCanvas />
+      {/* Layer 3: Control Room Modal */}
+      <ControlRoom />
     </div>
   )
 }
@@ -95,7 +108,8 @@ function ProtectedRoute({ children }) {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <LayerProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route
@@ -169,7 +183,8 @@ export default function App() {
             }
           />
         </Routes>
-      </BrowserRouter>
+        </BrowserRouter>
+      </LayerProvider>
     </AuthProvider>
   )
 }

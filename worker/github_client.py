@@ -6,6 +6,7 @@ Uses the GitHub REST API via httpx + git CLI for cloning.
 from __future__ import annotations
 
 import subprocess
+import re
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +109,69 @@ def create_pull_request(
         return True, pr_url
 
     return False, f"GitHub API error {response.status_code}: {response.text[:500]}"
+
+
+def push_branch(repo_path: Path, branch: str, remote: str = "origin") -> tuple[bool, str]:
+    """Push a local branch to remote so it can be used as PR head."""
+    try:
+        result = subprocess.run(
+            ["git", "push", "-u", remote, branch],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        return False, "git push timed out after 60s"
+    except OSError as exc:
+        return False, f"git push failed: {exc}"
+
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        stdout = (result.stdout or "").strip()
+        return False, stderr or stdout or f"git push failed with exit code {result.returncode}"
+
+    return True, (result.stdout or "").strip() or "pushed"
+
+
+def get_pull_request_status(pr_url: str, token: str) -> tuple[bool, dict[str, Any] | str]:
+    """
+    Get PR status from a GitHub PR URL.
+    Returns (success, status_dict_or_error)
+    status_dict: {state, merged, mergeable, draft, title, number, url, head, base}
+    """
+    try:
+        import httpx
+    except ImportError:
+        return False, "httpx not installed. Run: pip install httpx"
+
+    match = re.search(r"github\.com/([^/]+)/([^/]+)/pull/(\d+)", pr_url)
+    if not match:
+        return False, f"Invalid PR URL: {pr_url}"
+
+    owner, repo, pr_number = match.group(1), match.group(2), match.group(3)
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+
+    try:
+        response = httpx.get(api_url, headers=_github_headers(token), timeout=15)
+    except httpx.RequestError as exc:
+        return False, f"GitHub API request failed: {exc}"
+
+    if response.status_code != 200:
+        return False, f"GitHub API error {response.status_code}: {response.text[:300]}"
+
+    data = response.json()
+    return True, {
+        "state": data.get("state"),
+        "merged": data.get("merged"),
+        "mergeable": data.get("mergeable"),
+        "draft": data.get("draft"),
+        "title": data.get("title"),
+        "number": data.get("number"),
+        "url": data.get("html_url"),
+        "head": data.get("head", {}).get("ref"),
+        "base": data.get("base", {}).get("ref"),
+    }
 
 
 def list_user_repos(token: str, per_page: int = 100) -> tuple[bool, list[dict[str, Any]]]:

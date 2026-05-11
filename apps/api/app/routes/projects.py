@@ -6,6 +6,7 @@ from datetime import datetime
 from ..database import get_db
 from ..models import Project, ProjectStatus
 from ..utils import generate_id, verify_token
+from ..security.vault import vault_service
 from .auth import verify_token_header
 from pathlib import Path
 
@@ -194,7 +195,11 @@ def connect_github_repo(
 
     verify_token_header(authorization)
 
-    token = settings.github_token
+    try:
+        token = vault_service.maybe_resolve_secret(settings.github_token)
+    except RuntimeError:
+        raise HTTPException(status_code=401, detail="Vault is locked. Re-authenticate to use GitHub token.")
+
     if not token:
         raise HTTPException(status_code=400, detail="GITHUB_TOKEN is not configured.")
 
@@ -243,7 +248,11 @@ def list_github_repos(
 
     verify_token_header(authorization)
 
-    token = settings.github_token
+    try:
+        token = vault_service.maybe_resolve_secret(settings.github_token)
+    except RuntimeError:
+        raise HTTPException(status_code=401, detail="Vault is locked. Re-authenticate to use GitHub token.")
+
     if not token:
         raise HTTPException(status_code=400, detail="GITHUB_TOKEN is not configured.")
 

@@ -3,6 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { projects, tasks } from '../api'
 import TaskForm from '../components/TaskForm'
 
+const PROVIDER_MODELS = {
+  anthropic: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-3-5-haiku-20241022'],
+  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o3', 'o4-mini'],
+  google: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+  ollama: ['llama3.1', 'llama3.2', 'qwen2.5-coder', 'codestral', 'mistral'],
+}
+
 export default function ProjectDetail() {
   const { projectId } = useParams()
   const navigate = useNavigate()
@@ -12,6 +19,11 @@ export default function ProjectDetail() {
   const [error, setError] = useState('')
   const [isCreatingTask, setIsCreatingTask] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
+  const [modelProvider, setModelProvider] = useState('')
+  const [modelName, setModelName] = useState('')
+  const [savingModel, setSavingModel] = useState(false)
+  const [savedModelMessage, setSavedModelMessage] = useState('')
+  const [useGlobalModel, setUseGlobalModel] = useState(false)
 
   const loadProject = useCallback(async () => {
     try {
@@ -23,6 +35,10 @@ export default function ProjectDetail() {
       ])
       setProject(projectRes.data)
       setTaskList(tasksRes.data)
+      const isGlobal = !projectRes.data.model_provider && !projectRes.data.model_name
+      setUseGlobalModel(isGlobal)
+      setModelProvider(projectRes.data.model_provider || 'anthropic')
+      setModelName(projectRes.data.model_name || '')
     } catch (err) {
       setError('Failed to load project')
       console.error(err)
@@ -63,6 +79,26 @@ export default function ProjectDetail() {
     }
   }
 
+  const handleSaveModel = async () => {
+    try {
+      setSavingModel(true)
+      setSavedModelMessage('')
+      setError('')
+      await projects.setModel(
+        projectId,
+        useGlobalModel ? null : modelProvider,
+        useGlobalModel ? null : modelName
+      )
+      await loadProject()
+      setSavedModelMessage(useGlobalModel ? 'Project now inherits global model settings.' : 'Project model override saved.')
+      setTimeout(() => setSavedModelMessage(''), 3000)
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Failed to update project model settings')
+    } finally {
+      setSavingModel(false)
+    }
+  }
+
   if (loading) {
     return <div style={{ padding: '2rem' }}>Loading...</div>
   }
@@ -89,6 +125,7 @@ export default function ProjectDetail() {
       </button>
 
       {error && <div style={{ color: 'red', marginBottom: '1rem', padding: '1rem', backgroundColor: '#ffe6e6', borderRadius: '4px' }}>{error}</div>}
+      {savedModelMessage && <div style={{ color: '#1c6b2f', marginBottom: '1rem', padding: '1rem', backgroundColor: '#e8f8ec', borderRadius: '4px', border: '1px solid #b9e5c5' }}>{savedModelMessage}</div>}
 
       <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
         <h1>{project.name}</h1>
@@ -97,7 +134,81 @@ export default function ProjectDetail() {
           {project.repo_url && <div><strong>URL:</strong> {project.repo_url}</div>}
           <div><strong>Branch:</strong> {project.default_branch}</div>
           <div><strong>Status:</strong> {project.status}</div>
-          <div style={{ gridColumn: '1 / -1' }}><strong>Claude Command Override:</strong> {project.claude_code_command || 'global default'}</div>
+          <div><strong>Model Provider:</strong> {project.model_provider || 'global default'}</div>
+          <div><strong>Model Name:</strong> {project.model_name || 'provider default'}</div>
+          <div style={{ gridColumn: '1 / -1' }}><strong>Agent CLI Command Override:</strong> {project.claude_code_command || 'global default'}</div>
+        </div>
+
+        <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #ddd' }}>
+          <h3 style={{ margin: '0 0 0.75rem 0' }}>Model Override</h3>
+          <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <input
+              id="inherit-global-model"
+              type="checkbox"
+              checked={useGlobalModel}
+              onChange={(e) => setUseGlobalModel(e.target.checked)}
+            />
+            <label htmlFor="inherit-global-model" style={{ fontWeight: 600 }}>
+              Inherit global provider and model
+            </label>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 'bold' }}>Provider</label>
+              <select
+                value={modelProvider}
+                disabled={useGlobalModel}
+                onChange={(e) => {
+                  const provider = e.target.value
+                  setModelProvider(provider)
+                  const defaults = PROVIDER_MODELS[provider] || []
+                  if (!defaults.includes(modelName)) {
+                    setModelName(defaults[0] || '')
+                  }
+                }}
+                style={{ width: '100%', padding: '0.55rem', border: '1px solid #ccc', borderRadius: '4px' }}
+              >
+                {Object.keys(PROVIDER_MODELS).map(provider => (
+                  <option key={provider} value={provider}>{provider}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 'bold' }}>Model</label>
+              <input
+                value={modelName}
+                disabled={useGlobalModel}
+                onChange={(e) => setModelName(e.target.value)}
+                list="provider-models"
+                placeholder="provider default"
+                style={{ width: '100%', padding: '0.55rem', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' }}
+              />
+              <datalist id="provider-models">
+                {(PROVIDER_MODELS[modelProvider] || []).map(model => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+            </div>
+            <button
+              onClick={handleSaveModel}
+              disabled={savingModel}
+              style={{
+                padding: '0.6rem 1rem',
+                backgroundColor: '#0d6efd',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: savingModel ? 'not-allowed' : 'pointer',
+                opacity: savingModel ? 0.7 : 1,
+                fontWeight: 'bold'
+              }}
+            >
+              {savingModel ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+          <p style={{ margin: '0.6rem 0 0', fontSize: '0.85rem', color: '#666' }}>
+            Use global defaults for simple setup, or set a project-specific provider/model for custom behavior.
+          </p>
         </div>
       </div>
 

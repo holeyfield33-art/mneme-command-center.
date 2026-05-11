@@ -125,12 +125,38 @@ _BASH_ALLOWLIST_RE = re.compile(
     r"^(pytest|python -m pytest|npm test|npm run test|pnpm test|yarn test"
     r"|npm run lint|eslint|pylint|flake8|ruff|black|isort"
     r"|git (status|diff|log|show|branch|remote)"
-    r"|cat |head |tail |ls |find |grep |echo )"
+    r"|cat\\b|head\\b|tail\\b|ls\\b|find\\b|grep\\b|echo\\b)"
 )
+
+_BLOCKED_SHELL_TOKENS = (";", "&&", "||", "`", "$(", ">", "<")
 
 
 def _is_safe_bash(command: str) -> bool:
-    return bool(_BASH_ALLOWLIST_RE.match(command.strip()))
+    cmd = command.strip()
+    if not cmd:
+        return False
+    if any(token in cmd for token in _BLOCKED_SHELL_TOKENS):
+        return False
+    return bool(_BASH_ALLOWLIST_RE.match(cmd))
+
+
+def _validate_tool_input(tool_name: str, tool_input: dict[str, Any]) -> None:
+    """Validate tool payload against static schema to prevent argument escalation."""
+    schema = next((t["parameters"] for t in TOOLS if t["name"] == tool_name), None)
+    if schema is None:
+        raise ValueError(f"Unknown tool schema: {tool_name}")
+
+    required = set(schema.get("required", []))
+    properties = set(schema.get("properties", {}).keys())
+    actual = set(tool_input.keys())
+
+    missing = required - actual
+    if missing:
+        raise ValueError(f"Missing required tool args: {sorted(missing)}")
+
+    unknown = actual - properties
+    if unknown:
+        raise ValueError(f"Unknown tool args not permitted: {sorted(unknown)}")
 
 
 # ---------------------------------------------------------------------------
@@ -141,9 +167,11 @@ class ToolExecutor:
     def __init__(self, repo_path: Path, timeout: int = 60):
         self.repo_path = repo_path
         self.timeout = timeout
+        self.memory_limit_mb = max(64, int(os.getenv("AGENT_MEMORY_LIMIT_MB", "512")))
 
     def execute(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         try:
+            _validate_tool_input(tool_name, tool_input)
             if tool_name == "read_file":
                 return self._read_file(tool_input["path"])
             if tool_name == "write_file":
@@ -216,6 +244,17 @@ class ToolExecutor:
                 f"Command not allowed: {command!r}\n"
                 "Only test runners, linters, formatters, and read-only git commands are permitted."
             )
+
+        preexec = None
+        if os.name == "posix":
+            import resource
+
+            def _limit_process() -> None:
+                limit = self.memory_limit_mb * 1024 * 1024
+                resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+
+            preexec = _limit_process
+
         try:
             result = subprocess.run(
                 command,
@@ -224,6 +263,7 @@ class ToolExecutor:
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
+                preexec_fn=preexec,
             )
             out = (result.stdout or "").strip()
             err = (result.stderr or "").strip()

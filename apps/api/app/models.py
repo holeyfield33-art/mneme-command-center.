@@ -146,3 +146,112 @@ class SystemState(Base):
     key = Column(String, primary_key=True)
     value = Column(String)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(String, primary_key=True, index=True)
+    actor = Column(String, index=True)
+    operation = Column(String, index=True)
+    resource = Column(String, nullable=True, index=True)
+    status = Column(String, default="ok", index=True)
+    details = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class AgentPhaseType(str, enum.Enum):
+    PLANNER = "planner"
+    IMPLEMENTER = "implementer"
+    TESTER = "tester"
+    REVIEWER = "reviewer"
+
+
+class AgentPhaseStatus(str, enum.Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    ROLLED_BACK = "rolled_back"
+
+
+class OrchestrationOperation(str, enum.Enum):
+    PHASE_STARTED = "phase_started"
+    PHASE_COMPLETED = "phase_completed"
+    PHASE_FAILED = "phase_failed"
+    HANDOFF = "handoff"
+    ROLLBACK = "rollback"
+    CHECKPOINT = "checkpoint"
+
+
+class AgentPhase(Base):
+    __tablename__ = "agent_phases"
+
+    id = Column(String, primary_key=True, index=True)
+    task_id = Column(String, ForeignKey("tasks.id"), index=True)
+    phase_type = Column(Enum(AgentPhaseType), index=True)
+    status = Column(Enum(AgentPhaseStatus), default=AgentPhaseStatus.PENDING, index=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    duration = Column(Integer, nullable=True)  # Duration in seconds
+    
+    # Phase context and output
+    context = Column(JSON, nullable=True)  # Input context: requirements, code diffs, test results, etc.
+    output = Column(JSON, nullable=True)  # Phase-specific results
+    error = Column(Text, nullable=True)  # Error message if phase failed
+    
+    # Checkpoint state for rollback
+    checkpoint_state = Column(JSON, nullable=True)  # Saved state for rollback capability
+    
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    task = relationship("Task", foreign_keys=[task_id])
+
+
+class OrchestrationLog(Base):
+    __tablename__ = "orchestration_logs"
+
+    id = Column(String, primary_key=True, index=True)
+    task_id = Column(String, ForeignKey("tasks.id"), index=True)
+    actor = Column(String, index=True)  # Agent phase name (planner, implementer, etc.)
+    operation = Column(Enum(OrchestrationOperation), index=True)
+    
+    # Phase transition tracking
+    source_phase = Column(String, nullable=True)  # Source phase for handoffs
+    target_phase = Column(String, nullable=True)  # Target phase for handoffs
+    
+    # Status and metadata
+    status = Column(String, default="ok", index=True)  # ok, warning, error
+    details = Column(JSON, nullable=True)  # Additional metadata
+    
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    
+    # Relationships
+    task = relationship("Task", foreign_keys=[task_id])
+
+
+class SkillCategory(str, enum.Enum):
+    PLANNING = "planning"
+    IMPLEMENTATION = "implementation"
+    TESTING = "testing"
+    REVIEW = "review"
+    OPERATIONS = "operations"
+
+
+class Skill(Base):
+    __tablename__ = "skills"
+
+    id = Column(String, primary_key=True, index=True)
+    slug = Column(String, unique=True, index=True)
+    name = Column(String, index=True)
+    description = Column(Text, nullable=True)
+    category = Column(Enum(SkillCategory), default=SkillCategory.IMPLEMENTATION, index=True)
+    enabled = Column(Boolean, default=True, index=True)
+    required_approval = Column(Boolean, default=True)
+    max_risk_level = Column(Enum(RiskLevel), default=RiskLevel.MEDIUM, index=True)
+    tool_allowlist = Column(JSON, nullable=True)
+    skill_config = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
