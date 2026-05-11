@@ -18,7 +18,7 @@ import subprocess
 import shutil
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
 
 from worker.repo_planning import (
     build_repo_profile,
@@ -614,13 +614,13 @@ class MnemeWorker:
             self.add_task_log(task_id, "warning", "Agent execution mocked in test mode.")
             return True, "mocked"
 
-        def log_fn(level: str, message: str) -> None:
-            self.add_task_log(task_id, level, message)
-
         # Orchestration gate: if ENABLE_ORCHESTRATION is set, run 4-phase orchestrated loop
         enable_orchestration = os.getenv("ENABLE_ORCHESTRATION", "false").strip().lower() == "true"
         if enable_orchestration:
-            return self._run_orchestrated_agent(task_id, repo_path, prompt_text, log_fn)
+            return self._run_orchestrated_agent(task_id, repo_path, prompt_text)
+
+        def log_fn(level: str, message: str) -> None:
+            self.add_task_log(task_id, level, message)
 
         try:
             agent = build_agent_loop(
@@ -659,7 +659,6 @@ class MnemeWorker:
         task_id: str,
         repo_path: Path,
         prompt_text: str,
-        log_fn: Any,
     ) -> tuple[bool, str]:
         """Run the 4-phase orchestrated agent loop via AgentOrchestrator."""
         try:
@@ -751,6 +750,31 @@ class MnemeWorker:
         diff_path = self._diff_summary_path(task_id)
         save_markdown(diff_path, diff_summary)
         return diff_path, changed_files, risk_level, risk_notes
+
+    def _prepare_execution_prompt(
+        self,
+        task: Dict[str, Any],
+        task_id: str,
+        profile: dict[str, Any],
+    ) -> str:
+        approved_plan_text, approved_plan_path = self._load_plan_text(
+            task_id,
+            task.get("approved_plan_summary"),
+        )
+        prompt_text = generate_claude_prompt_markdown(
+            task=task,
+            profile=profile,
+            approved_plan_text=approved_plan_text,
+            approved_plan_path=str(approved_plan_path),
+            likely_files=profile.get("important_files", []),
+            test_commands=profile.get("test_commands", []),
+        )
+
+        # Save prompt for audit / legacy CLI fallback
+        prompt_path = self._claude_prompt_path(task_id)
+        save_markdown(prompt_path, prompt_text)
+        self.add_task_log(task_id, "info", f"Claude prompt generated: {prompt_path}")
+        return prompt_text
 
     def process_task(self, task: Dict[str, Any]) -> bool:
         """Process a single task."""
@@ -868,7 +892,6 @@ class MnemeWorker:
         task_id = task["id"]
         project_name = task.get("project_name") or f"project-{task.get('project_id', 'unknown')}"
         repo_path_raw = task.get("repo_path")
-        project_claude_code_command = task.get("project_claude_code_command")
         checkpoint = load_checkpoint()
         resume_context = checkpoint.get("context", {}) if checkpoint and checkpoint.get("task_id") == task_id else {}
         resume_step = checkpoint.get("step") if checkpoint and checkpoint.get("task_id") == task_id else None
@@ -918,21 +941,9 @@ class MnemeWorker:
             self.mark_task_failed(task_id)
             return False
 
-        approved_plan_text, approved_plan_path = self._load_plan_text(task_id, task.get("approved_plan_summary"))
-        prompt_text = generate_claude_prompt_markdown(
-            task=task,
-            profile=profile,
-            approved_plan_text=approved_plan_text,
-            approved_plan_path=str(approved_plan_path),
-            likely_files=profile.get("important_files", []),
-            test_commands=profile.get("test_commands", []),
-        )
-        # Save prompt for audit / legacy CLI fallback
-        prompt_path = self._claude_prompt_path(task_id)
-        save_markdown(prompt_path, prompt_text)
-        self.add_task_log(task_id, "info", f"Claude prompt generated: {prompt_path}")
+        prompt_text = self._prepare_execution_prompt(task, task_id, profile)
 
-        agent_ok, _agent_state = self._run_agent_loop(task, repo_path, prompt_text)
+        agent_ok, _ = self._run_agent_loop(task, repo_path, prompt_text)
         if not agent_ok:
             return False
 
@@ -987,6 +998,23 @@ class MnemeWorker:
         clear_checkpoint()
         return True
 
+    def _process_task_batch(
+        self,
+        tasks: list[Dict[str, Any]],
+        handler: Callable[[Dict[str, Any]], bool],
+        batch_name: str,
+    ) -> None:
+        for task in tasks:
+            try:
+                handler(task)
+            except Exception as exc:
+                logger.exception(
+                    "Exception in %s batch for task %s: %s",
+                    batch_name,
+                    task.get("id"),
+                    exc,
+                )
+
     def run(self, heartbeat_interval: int = 30):
         """Main worker loop."""
         logger.info("Mneme Worker started")
@@ -1011,20 +1039,11 @@ class MnemeWorker:
                         logger.warning("Failed to send heartbeat")
                     last_heartbeat_time = current_time
 
-                # Get and process tasks
-                tasks = self.get_queued_tasks()
-                for task in tasks:
-                    try:
-                        self.process_task(task)
-                    except Exception as e:
-                        logger.exception("Exception processing task: %s", e)
+                queued_tasks = self.get_queued_tasks()
+                self._process_task_batch(queued_tasks, self.process_task, "planning")
 
                 execution_tasks = self.get_execution_ready_tasks()
-                for task in execution_tasks:
-                    try:
-                        self.process_execution_task(task)
-                    except Exception as e:
-                        logger.exception("Exception executing task: %s", e)
+                self._process_task_batch(execution_tasks, self.process_execution_task, "execution")
 
                 # Sleep briefly before next check
                 time.sleep(5)

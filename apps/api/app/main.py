@@ -22,6 +22,7 @@ def ensure_schema_compatibility() -> None:
     inspector = inspect(engine)
     approval_columns = {column["name"] for column in inspector.get_columns("approvals")}
     project_columns = {column["name"] for column in inspector.get_columns("projects")}
+    task_columns = {column["name"] for column in inspector.get_columns("tasks")}
     with engine.begin() as connection:
         if "risk_level" not in approval_columns:
             connection.execute(
@@ -42,6 +43,30 @@ def ensure_schema_compatibility() -> None:
         if "model_name" not in project_columns:
             connection.execute(
                 text("ALTER TABLE projects ADD COLUMN model_name VARCHAR")
+            )
+        if "mode" not in task_columns:
+            connection.execute(
+                text("ALTER TABLE tasks ADD COLUMN mode VARCHAR DEFAULT 'interactive'")
+            )
+        if "risk_level" not in task_columns:
+            connection.execute(
+                text("ALTER TABLE tasks ADD COLUMN risk_level VARCHAR DEFAULT 'medium'")
+            )
+        if "branch_name" not in task_columns:
+            connection.execute(
+                text("ALTER TABLE tasks ADD COLUMN branch_name VARCHAR")
+            )
+        if "model_provider" not in task_columns:
+            connection.execute(
+                text("ALTER TABLE tasks ADD COLUMN model_provider VARCHAR")
+            )
+        if "model_name" not in task_columns:
+            connection.execute(
+                text("ALTER TABLE tasks ADD COLUMN model_name VARCHAR")
+            )
+        if "updated_at" not in task_columns:
+            connection.execute(
+                text("ALTER TABLE tasks ADD COLUMN updated_at DATETIME")
             )
 
 

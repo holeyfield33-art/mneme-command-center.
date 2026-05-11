@@ -223,76 +223,25 @@ export default function App() {
           <BrowserRouter>
             <Routes>
               <Route path="/login" element={<Login />} />
-              <Route
-                path="/"
-                element={
-                  <Layout>
-                    <ProtectedRoute>
-                      <Home />
-                    </ProtectedRoute>
-                  </Layout>
-                }
-              />
-              <Route
-                path="/projects"
-                element={
-                  <Layout>
-                    <ProtectedRoute>
-                      <Projects />
-                    </ProtectedRoute>
-                  </Layout>
-                }
-              />
-              <Route
-                path="/project/:projectId"
-                element={
-                  <Layout>
-                    <ProtectedRoute>
-                      <ProjectDetail />
-                    </ProtectedRoute>
-                  </Layout>
-                }
-              />
-              <Route
-                path="/task/:taskId"
-                element={
-                  <Layout>
-                    <ProtectedRoute>
-                      <TaskDetail />
-                    </ProtectedRoute>
-                  </Layout>
-                }
-              />
-              <Route
-                path="/approvals"
-                element={
-                  <Layout>
-                    <ProtectedRoute>
-                      <Approvals />
-                    </ProtectedRoute>
-                  </Layout>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <Layout>
-                    <ProtectedRoute>
-                      <Settings />
-                    </ProtectedRoute>
-                  </Layout>
-                }
-              />
-              <Route
-                path="/setup"
-                element={
-                  <Layout>
-                    <ProtectedRoute>
-                      <SetupWizard />
-                    </ProtectedRoute>
-                  </Layout>
-                }
-              />
+              {[
+                { path: '/', element: <Home /> },
+                { path: '/projects', element: <Projects /> },
+                { path: '/project/:projectId', element: <ProjectDetail /> },
+                { path: '/task/:taskId', element: <TaskDetail /> },
+                { path: '/approvals', element: <Approvals /> },
+                { path: '/settings', element: <Settings /> },
+                { path: '/setup', element: <SetupWizard /> },
+              ].map((route) => (
+                <Route
+                  key={route.path}
+                  path={route.path}
+                  element={
+                    <Layout>
+                      <ProtectedRoute>{route.element}</ProtectedRoute>
+                    </Layout>
+                  }
+                />
+              ))}
             </Routes>
           </BrowserRouter>
         </GlobalErrorBoundary>

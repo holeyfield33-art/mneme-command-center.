@@ -49,7 +49,10 @@ const withReauthChallenge = async (requestFn) => {
 }
 
 export const auth = {
-  login: (password) => apiClient.post('/auth/login', { password })
+  login: (password) => apiClient.post('/auth/login', { password }),
+  googleLogin: (idToken) => apiClient.post('/auth/google-login', { id_token: idToken }),
+  mobileExchange: (deviceCode, oneTimeToken) =>
+    apiClient.post('/auth/mobile-exchange', { device_code: deviceCode, one_time_token: oneTimeToken }),
 }
 
 export const skills = {
