@@ -45,8 +45,9 @@ export default function Login() {
         <h1 style={{ textAlign: 'center', marginBottom: '2rem' }}>Mneme Command Center</h1>
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Password</label>
+            <label htmlFor="login-password" style={{ display: 'block', marginBottom: '0.5rem' }}>Password</label>
             <input
+              id="login-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
