@@ -109,6 +109,86 @@ def list_tasks(
     return query.all()
 
 
+@router.get("/{task_id}/diff")
+def get_task_diff(
+    task_id: str,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    """
+    Get the git diff for a task's feature branch.
+
+    Valid only for tasks in WAITING_FOR_DIFF_REVIEW, EXECUTING, or COMPLETED state.
+    Returns the diff between the task's project base_branch and the task's branch_name.
+    """
+    verify_token_header(authorization)
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found"
+        )
+
+    project = task.project
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task project not found"
+        )
+
+    allowed_statuses = {
+        TaskStatus.WAITING_FOR_DIFF_REVIEW,
+        TaskStatus.EXECUTING,
+        TaskStatus.COMPLETED,
+    }
+    if task.status not in allowed_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot retrieve diff for task with status '{task.status.value}'. "
+            f"Task must be in one of: {', '.join([s.value for s in allowed_statuses])}"
+        )
+
+    if not task.branch_name:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Task has no feature branch set. Cannot generate diff."
+        )
+
+    try:
+        from worker.github_client import get_branch_diff
+
+        diff_content = get_branch_diff(
+            project.repo_path,
+            project.default_branch,
+            task.branch_name,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to retrieve diff: {str(exc)}"
+        )
+
+    log_audit_event(
+        db,
+        actor="operator",
+        operation="diff_reviewed",
+        resource=task_id,
+        details={
+            "base_branch": project.default_branch,
+            "feature_branch": task.branch_name,
+            "diff_size_bytes": len(diff_content),
+        },
+    )
+
+    return {
+        "task_id": task.id,
+        "base_branch": project.default_branch,
+        "feature_branch": task.branch_name,
+        "diff": diff_content,
+    }
+
+
 @router.post("", response_model=TaskResponse)
 def create_task(
     request: TaskCreate,

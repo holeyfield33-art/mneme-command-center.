@@ -76,6 +76,7 @@ export const tasks = {
   pauseTask: (taskId) => apiClient.post(`/tasks/${taskId}/pause`),
   resumeTask: (taskId) => apiClient.post(`/tasks/${taskId}/resume`),
   cancelTask: (taskId) => apiClient.post(`/tasks/${taskId}/cancel`),
+    getTaskDiff: (taskId) => apiClient.get(`/tasks/${taskId}/diff`),
   orchestrationInitialize: (id) => apiClient.post(`/api/v1/tasks/${id}/orchestration/initialize`),
   orchestrationPhases: (id) => apiClient.get(`/api/v1/tasks/${id}/orchestration/phases`),
   orchestrationStatus: (id) => apiClient.get(`/api/v1/tasks/${id}/orchestration/status`),
