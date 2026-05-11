@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -168,6 +169,12 @@ class ToolExecutor:
         self.repo_path = repo_path
         self.timeout = timeout
         self.memory_limit_mb = max(64, int(os.getenv("AGENT_MEMORY_LIMIT_MB", "512")))
+        self.sandbox_mode = os.getenv("AGENT_SANDBOX_MODE", "process").strip().lower()
+        self.sandbox_image = os.getenv(
+            "AGENT_SANDBOX_IMAGE",
+            "ghcr.io/holeyfield33-art/mneme-agent-sandbox:latest",
+        ).strip()
+        self.sandbox_network = os.getenv("AGENT_SANDBOX_NETWORK", "none").strip() or "none"
 
     def execute(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         try:
@@ -245,6 +252,9 @@ class ToolExecutor:
                 "Only test runners, linters, formatters, and read-only git commands are permitted."
             )
 
+        if self.sandbox_mode == "docker":
+            return self._bash_in_docker(command)
+
         preexec = None
         if os.name == "posix":
             import resource
@@ -275,6 +285,54 @@ class ToolExecutor:
             return f"Command timed out after {self.timeout}s"
         except Exception as exc:
             return f"Execution error: {exc}"
+
+    def _bash_in_docker(self, command: str) -> str:
+        docker_bin = shutil.which("docker")
+        if not docker_bin:
+            return "Sandbox mode is set to docker, but docker is not installed on this host."
+
+        workspace_mount = f"{self.repo_path.resolve()}:/workspace"
+        docker_cmd = [
+            docker_bin,
+            "run",
+            "--rm",
+            "--network",
+            self.sandbox_network,
+            "--cpus",
+            "1",
+            "--memory",
+            f"{self.memory_limit_mb}m",
+            "--pids-limit",
+            "256",
+            "-w",
+            "/workspace",
+            "-v",
+            workspace_mount,
+            self.sandbox_image,
+            "/bin/sh",
+            "-lc",
+            command,
+        ]
+
+        try:
+            result = subprocess.run(
+                docker_cmd,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+            )
+            out = (result.stdout or "").strip()
+            err = (result.stderr or "").strip()
+            combined = out
+            if err:
+                combined += f"\n[stderr]\n{err}"
+            if not combined:
+                combined = f"(exit code {result.returncode})"
+            return combined[:5000]
+        except subprocess.TimeoutExpired:
+            return f"Sandboxed command timed out after {self.timeout}s"
+        except Exception as exc:
+            return f"Sandboxed execution error: {exc}"
 
 
 # ---------------------------------------------------------------------------

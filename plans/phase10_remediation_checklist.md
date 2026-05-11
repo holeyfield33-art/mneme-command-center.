@@ -5,6 +5,7 @@ This checklist tracks execution against the prioritized remediation list.
 ## P0 (Blockers)
 
 - [ ] Agent sandboxing (Docker/chroot isolation for every agent execution)
+	- Progress: Docker sandbox execution mode added for agent bash tool (`AGENT_SANDBOX_MODE=docker`), full isolation rollout still pending for all execution paths.
 - [x] Real-time UI migration complete (remove polling, rely on SSE/WebSocket)
 - [x] Remove mock/fake fallback data everywhere (explicit offline/error states only)
 
