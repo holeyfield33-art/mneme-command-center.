@@ -25,6 +25,11 @@ from ..models import (
 from ..security.transactions import TransactionWrapper, TransactionState
 from ..database import SessionLocal
 
+# Lazy import to avoid circular dependency at module load time
+def _get_build_agent_loop():
+    from worker.llm_client import build_agent_loop  # type: ignore[import]
+    return build_agent_loop
+
 
 class AgentOrchestrator:
     """
@@ -412,6 +417,89 @@ class AgentOrchestrator:
         self.transaction.commit()
         return self.transaction.get_transaction_log()
     
+    # Phase-specific objective prefixes
+    _PHASE_OBJECTIVES: Dict[AgentPhaseType, str] = {
+        AgentPhaseType.PLANNER: "Analyze the requirements and produce a detailed implementation plan.",
+        AgentPhaseType.IMPLEMENTER: "Implement the plan. Write all necessary code changes.",
+        AgentPhaseType.TESTER: "Write and run tests to validate the implementation.",
+        AgentPhaseType.REVIEWER: "Review the implementation for correctness, security, and code quality.",
+    }
+
+    def run_phase(
+        self,
+        phase_type: AgentPhaseType,
+        repo_path: "Path",  # type: ignore[name-defined]
+        objective: str,
+        prior_context: Optional[str] = None,
+    ) -> str:
+        """
+        Execute a single agent phase using an AgentLoop.
+
+        Args:
+            phase_type: Which phase to run
+            repo_path: Filesystem path to the repository
+            objective: Base task objective
+            prior_context: Output from the previous phase (if any)
+
+        Returns:
+            The agent's summary output for this phase
+        """
+        import os
+        from pathlib import Path as _Path
+
+        build_agent_loop = _get_build_agent_loop()
+
+        # Transition phase to IN_PROGRESS
+        self.start_phase(phase_type)
+
+        phase_prefix = self._PHASE_OBJECTIVES[phase_type]
+        task_prompt = f"{phase_prefix}\n\n## Task objective\n{objective}"
+
+        log_fn_messages: list[str] = []
+
+        def _log_fn(level: str, message: str) -> None:
+            log_fn_messages.append(f"[{level.upper()}] {message}")
+
+        try:
+            loop = build_agent_loop(
+                project_provider=None,
+                project_model=None,
+                repo_path=_Path(repo_path) if not hasattr(repo_path, "read_text") else repo_path,
+                log_fn=_log_fn,
+                max_iterations=int(os.getenv("AGENT_MAX_ITERATIONS", "30")),
+                prior_phase_context=prior_context,
+            )
+            success, summary = loop.run(task_prompt)
+        except Exception as exc:
+            self.fail_phase(phase_type, str(exc))
+            raise
+
+        if not success:
+            self.fail_phase(phase_type, summary)
+            raise RuntimeError(f"Phase {phase_type.value} failed: {summary}")
+
+        self.complete_phase(phase_type, {"summary": summary, "log": "\n".join(log_fn_messages[-50:])})
+        return summary
+
+    def run_all_phases(self, repo_path: "Path", objective: str) -> str:  # type: ignore[name-defined]
+        """
+        Run all 4 phases sequentially, threading prior output as context.
+
+        Args:
+            repo_path: Filesystem path to the repository
+            objective: Base task objective
+
+        Returns:
+            Final reviewer summary
+        """
+        prior_context: Optional[str] = None
+        final_summary = ""
+        for phase_type in self.PHASE_ORDER:
+            summary = self.run_phase(phase_type, repo_path, objective, prior_context=prior_context)
+            prior_context = summary
+            final_summary = summary
+        return final_summary
+
     def _log_orchestration(
         self,
         actor: str,
