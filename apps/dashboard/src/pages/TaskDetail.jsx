@@ -23,8 +23,25 @@ export default function TaskDetail() {
   const [prStatus, setPrStatus] = useState(null)
   const [lastPrRefreshAt, setLastPrRefreshAt] = useState(null)
     const [costInfo, setCostInfo] = useState(null)
+    const [diffContent, setDiffContent] = useState('')
+    const [diffLoading, setDiffLoading] = useState(false)
+    const [diffError, setDiffError] = useState('')
+    const [diffDecisionLoading, setDiffDecisionLoading] = useState(false)
 
-  const refreshPrStatus = useCallback(async () => {
+    const loadDiff = useCallback(async () => {
+      setDiffLoading(true)
+      setDiffError('')
+      try {
+        const diffRes = await tasks.getTaskDiff(taskId)
+        setDiffContent(diffRes.data.diff || '')
+      } catch (err) {
+        setDiffError(err?.response?.data?.detail || 'Failed to load diff')
+      } finally {
+        setDiffLoading(false)
+      }
+    }, [taskId])
+
+    const refreshPrStatus = useCallback(async () => {
     setPrStatusLoading(true)
     try {
       const prStatusRes = await tasks.getGithubPrStatus(taskId)
@@ -36,6 +53,23 @@ export default function TaskDetail() {
       setPrStatusLoading(false)
     }
   }, [taskId])
+
+  const handleDiffDecision = async (approvalId, decision) => {
+    setDiffDecisionLoading(true)
+    setError('')
+    try {
+      if (decision === 'approve') {
+        await approvals.approve(approvalId)
+      } else {
+        await approvals.reject(approvalId)
+      }
+      await loadTask()
+    } catch (err) {
+      setError(err?.response?.data?.detail || `Failed to ${decision} diff review`)
+    } finally {
+      setDiffDecisionLoading(false)
+    }
+  }
 
   const loadTask = useCallback(async () => {
     try {
@@ -143,6 +177,10 @@ export default function TaskDetail() {
 
   const latestDiffApproval = taskApprovals
     .filter(approval => approval.type === 'diff_review' || approval.type === 'diff')
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+
+  const pendingDiffApproval = taskApprovals
+    .filter(approval => (approval.type === 'diff_review' || approval.type === 'diff') && approval.status === 'pending')
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
 
   const findLogValue = (prefix) => {
@@ -419,6 +457,120 @@ export default function TaskDetail() {
             </pre>
           </div>
         )}
+
+          {task.status === 'waiting_for_diff_review' && (
+            <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fff8e7', borderRadius: '8px', border: '2px solid #d39e00' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ margin: 0, color: '#664d03' }}>Diff Review Required</h3>
+                <button
+                  onClick={loadDiff}
+                  disabled={diffLoading}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#0d6efd',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: diffLoading ? 'not-allowed' : 'pointer',
+                    opacity: diffLoading ? 0.7 : 1,
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  {diffLoading ? 'Loading...' : 'View Diff'}
+                </button>
+              </div>
+
+              {diffError && (
+                <div style={{ padding: '0.75rem', backgroundColor: '#f8d7da', border: '1px solid #f6d6da', borderRadius: '4px', color: '#842029', marginBottom: '1rem' }}>
+                  {diffError}
+                </div>
+              )}
+
+              {diffContent && (
+                <div style={{ 
+                  backgroundColor: '#f5f5f5', 
+                  border: '1px solid #ddd', 
+                  borderRadius: '4px', 
+                  overflow: 'auto',
+                  maxHeight: '400px',
+                  marginBottom: '1rem'
+                }}>
+                  <pre style={{ 
+                    margin: 0, 
+                    padding: '1rem',
+                    fontFamily: 'monospace',
+                    fontSize: '0.85rem',
+                    whiteSpace: 'pre-wrap',
+                    wordWrap: 'break-word'
+                  }}>
+                    {diffContent.split('\n').map((line, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          backgroundColor:
+                            line.startsWith('+') && !line.startsWith('+++') ? '#e6ffdb' :
+                            line.startsWith('-') && !line.startsWith('---') ? '#ffe6e6' :
+                            line.startsWith('@@') ? '#e6f2ff' :
+                            'transparent',
+                          color:
+                            line.startsWith('+') && !line.startsWith('+++') ? '#155724' :
+                            line.startsWith('-') && !line.startsWith('---') ? '#721c24' :
+                            line.startsWith('@@') ? '#004085' :
+                            '#333',
+                          paddingLeft: '0.5rem',
+                          lineHeight: '1.4'
+                        }}
+                      >
+                        {line}
+                      </div>
+                    ))}
+                  </pre>
+                </div>
+              )}
+
+              {diffContent && (
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => handleDiffDecision(pendingDiffApproval?.id, 'approve')}
+                    disabled={!pendingDiffApproval || diffDecisionLoading}
+                    style={{
+                      padding: '0.65rem 1.2rem',
+                      backgroundColor: '#198754',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: !pendingDiffApproval || diffDecisionLoading ? 'not-allowed' : 'pointer',
+                      fontWeight: 'bold',
+                      opacity: !pendingDiffApproval || diffDecisionLoading ? 0.7 : 1
+                    }}
+                  >
+                    {diffDecisionLoading ? 'Submitting...' : 'Approve Changes'}
+                  </button>
+                  <button
+                    onClick={() => handleDiffDecision(pendingDiffApproval?.id, 'reject')}
+                    disabled={!pendingDiffApproval || diffDecisionLoading}
+                    style={{
+                      padding: '0.65rem 1.2rem',
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: !pendingDiffApproval || diffDecisionLoading ? 'not-allowed' : 'pointer',
+                      fontWeight: 'bold',
+                      opacity: !pendingDiffApproval || diffDecisionLoading ? 0.7 : 1
+                    }}
+                  >
+                    {diffDecisionLoading ? 'Submitting...' : 'Reject Changes'}
+                  </button>
+                  {!pendingDiffApproval && (
+                    <p style={{ margin: 0, color: '#666', alignSelf: 'center' }}>
+                      No pending diff approval request is available.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
         <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: 'white', borderRadius: '4px', border: '1px solid #e5e5e5' }}>
           <div style={{ marginBottom: '0.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>

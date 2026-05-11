@@ -13,8 +13,12 @@ from ..utils import generate_id, verify_token, sanitize_objective
 from ..notifier import ApiNotifier
 from ..config import settings
 from ..security.vault import vault_service
+from ..security.audit import log_audit_event
 from ..services.orchestration import AgentOrchestrator
 from .auth import verify_token_header
+
+# Terminal statuses that may never be transitioned away from via queue controls.
+_TERMINAL_STATUSES = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 notifier = ApiNotifier()
@@ -105,6 +109,86 @@ def list_tasks(
     return query.all()
 
 
+@router.get("/{task_id}/diff")
+def get_task_diff(
+    task_id: str,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    """
+    Get the git diff for a task's feature branch.
+
+    Valid only for tasks in WAITING_FOR_DIFF_REVIEW, EXECUTING, or COMPLETED state.
+    Returns the diff between the task's project base_branch and the task's branch_name.
+    """
+    verify_token_header(authorization)
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found"
+        )
+
+    project = task.project
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task project not found"
+        )
+
+    allowed_statuses = {
+        TaskStatus.WAITING_FOR_DIFF_REVIEW,
+        TaskStatus.EXECUTING,
+        TaskStatus.COMPLETED,
+    }
+    if task.status not in allowed_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot retrieve diff for task with status '{task.status.value}'. "
+            f"Task must be in one of: {', '.join([s.value for s in allowed_statuses])}"
+        )
+
+    if not task.branch_name:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Task has no feature branch set. Cannot generate diff."
+        )
+
+    try:
+        from worker.github_client import get_branch_diff
+
+        diff_content = get_branch_diff(
+            project.repo_path,
+            project.default_branch,
+            task.branch_name,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to retrieve diff: {str(exc)}"
+        )
+
+    log_audit_event(
+        db,
+        actor="operator",
+        operation="diff_reviewed",
+        resource=task_id,
+        details={
+            "base_branch": project.default_branch,
+            "feature_branch": task.branch_name,
+            "diff_size_bytes": len(diff_content),
+        },
+    )
+
+    return {
+        "task_id": task.id,
+        "base_branch": project.default_branch,
+        "feature_branch": task.branch_name,
+        "diff": diff_content,
+    }
+
+
 @router.post("", response_model=TaskResponse)
 def create_task(
     request: TaskCreate,
@@ -161,6 +245,118 @@ def create_task(
             f"Open: {task_link}"
         ).strip()
     )
+    return task
+
+
+@router.post("/{task_id}/pause", response_model=TaskResponse)
+def pause_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    """Pause a queued or in-progress task. Returns 409 for invalid transitions."""
+    verify_token_header(authorization)
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    # Only QUEUED or EXECUTING tasks can be paused.
+    pausable = {TaskStatus.QUEUED, TaskStatus.EXECUTING}
+    if task.status not in pausable:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot pause task with status '{task.status.value}'. "
+                   "Only queued or executing tasks can be paused.",
+        )
+
+    prev_status = task.status.value
+    task.status = TaskStatus.PAUSED
+    task.updated_at = datetime.utcnow()
+    log_audit_event(
+        db,
+        actor="operator",
+        operation="task_paused",
+        resource=task_id,
+        details={"previous_status": prev_status},
+    )
+    db.commit()
+    db.refresh(task)
+
+    broadcast_now("task_paused", {"task_id": task.id, "project_id": task.project_id})
+    return task
+
+
+@router.post("/{task_id}/resume", response_model=TaskResponse)
+def resume_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    """Resume a paused task (sets status back to QUEUED). Returns 409 for invalid transitions."""
+    verify_token_header(authorization)
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    if task.status != TaskStatus.PAUSED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot resume task with status '{task.status.value}'. "
+                   "Only paused tasks can be resumed.",
+        )
+
+    task.status = TaskStatus.QUEUED
+    task.updated_at = datetime.utcnow()
+    log_audit_event(
+        db,
+        actor="operator",
+        operation="task_resumed",
+        resource=task_id,
+        details={"new_status": "queued"},
+    )
+    db.commit()
+    db.refresh(task)
+
+    broadcast_now("task_resumed", {"task_id": task.id, "project_id": task.project_id})
+    return task
+
+
+@router.post("/{task_id}/cancel", response_model=TaskResponse)
+def cancel_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    """Cancel a task. Not allowed for already-terminal statuses (completed/failed/cancelled)."""
+    verify_token_header(authorization)
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    if task.status in _TERMINAL_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot cancel task with status '{task.status.value}'. "
+                   "Task has already reached a terminal state.",
+        )
+
+    prev_status = task.status.value
+    task.status = TaskStatus.CANCELLED
+    task.updated_at = datetime.utcnow()
+    log_audit_event(
+        db,
+        actor="operator",
+        operation="task_cancelled",
+        resource=task_id,
+        details={"previous_status": prev_status},
+    )
+    db.commit()
+    db.refresh(task)
+
+    broadcast_now("task_cancelled", {"task_id": task.id, "project_id": task.project_id})
     return task
 
 

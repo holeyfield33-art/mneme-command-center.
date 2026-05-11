@@ -229,3 +229,45 @@ def check_token(token: str) -> tuple[bool, str]:
         return True, response.json().get("login", "")
 
     return False, f"Status {response.status_code}: {response.text[:200]}"
+
+
+def get_branch_diff(repo_path: str, base_branch: str, feature_branch: str) -> str:
+    """
+    Get a git diff between two branches.
+    Runs: git diff {base_branch}...{feature_branch}
+    
+    Args:
+        repo_path: Path to the git repository
+        base_branch: Base branch (e.g., "main")
+        feature_branch: Feature branch to diff (e.g., "feature/my-changes")
+    
+    Returns:
+        The diff output as a string, capped at 50,000 characters
+    
+    Raises:
+        RuntimeError: If git diff fails
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", f"{base_branch}...{feature_branch}"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("git diff timed out after 30s")
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        raise RuntimeError(stderr or f"git diff failed with exit code {exc.returncode}")
+    except OSError as exc:
+        raise RuntimeError(f"git diff failed: {exc}")
+    
+    diff_output = result.stdout or ""
+    
+    # Cap at 50,000 characters and append truncation marker if needed
+    if len(diff_output) > 50000:
+        diff_output = diff_output[:50000] + "\n\n... diff truncated"
+    
+    return diff_output
