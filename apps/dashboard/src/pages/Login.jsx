@@ -14,13 +14,13 @@ export default function Login() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    
+
     try {
       const response = await auth.login(password)
       login(response.data.access_token)
       navigate('/')
     } catch (err) {
-      setError('Invalid password')
+      setError(err.response?.data?.detail || 'Invalid password')
     } finally {
       setLoading(false)
     }

@@ -15,8 +15,31 @@ apiClient.interceptors.request.use((config) => {
   return config
 })
 
+// Better error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      console.error('API Error:', {
+        status: error.response.status,
+        data: error.response.data,
+        url: error.response.config.url
+      })
+    }
+    return Promise.reject(error)
+  }
+)
+
 export const auth = {
   login: (password) => apiClient.post('/auth/login', { password })
+}
+
+export const skills = {
+  list: (params = {}) => apiClient.get('/api/v1/skills', { params }),
+  create: (data) => apiClient.post('/api/v1/skills', data),
+  update: (id, data) => apiClient.put(`/api/v1/skills/${id}`, data),
+  toggle: (id) => apiClient.post(`/api/v1/skills/${id}/toggle`),
+  remove: (id) => apiClient.delete(`/api/v1/skills/${id}`),
 }
 
 export const projects = {
@@ -66,7 +89,7 @@ export const tasks = {
     apiClient.post(`/api/v1/tasks/${id}/orchestration/phases/${phaseType}/complete`, output),
   orchestrationFailPhase: (id, phaseType, error) =>
     apiClient.post(`/api/v1/tasks/${id}/orchestration/phases/${phaseType}/fail`, null, { params: { error } }),
-    getCost: (id) => apiClient.get(`/tasks/${id}/cost`),
+  getCost: (id) => apiClient.get(`/tasks/${id}/cost`),
 }
 
 export const approvals = {
@@ -98,17 +121,7 @@ export const system = {
   clearEmergencyStop: () => apiClient.post('/system/emergency-stop/clear'),
   getEmergencyStopStatus: () => apiClient.get('/system/emergency-stop/status'),
   getRuntimeStatus: () => apiClient.get('/system/runtime-status'),
+  getVaultStatus: () => apiClient.get('/api/v1/vault/status'),
+  getAuditEvents: (limit = 100) => apiClient.get('/api/v1/audit/events', { params: { limit } }),
   updateSettings: (data) => apiClient.put('/system/settings', data),
-  getAuditEvents: (limit = 50) => apiClient.get('/api/v1/audit/events', { params: { limit } }),
-  getVaultStatus: () => apiClient.get('/api/v1/vault/status')
 }
-
-export const skills = {
-  list: (params = {}) => apiClient.get('/api/v1/skills', { params }),
-  create: (data) => apiClient.post('/api/v1/skills', data),
-  update: (id, data) => apiClient.put(`/api/v1/skills/${id}`, data),
-  toggle: (id) => apiClient.post(`/api/v1/skills/${id}/toggle`),
-  remove: (id) => apiClient.delete(`/api/v1/skills/${id}`)
-}
-
-export default apiClient

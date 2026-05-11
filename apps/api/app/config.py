@@ -1,7 +1,8 @@
 import os
+from pydantic import BaseModel, model_validator
 
 
-class Settings:
+class Settings(BaseModel):
     api_host: str = os.getenv("MNEME_API_HOST", "0.0.0.0")
     api_port: int = int(os.getenv("MNEME_API_PORT", "8000"))
     database_url: str = os.getenv("MNEME_DATABASE_URL", "sqlite:///./mneme.db")
@@ -51,6 +52,30 @@ class Settings:
     daily_cost_limit_usd: float = float(os.getenv("DAILY_COST_LIMIT_USD", "10"))
     task_cost_limit_usd: float = float(os.getenv("TASK_COST_LIMIT_USD", "1"))
     enforce_cost_limits: bool = os.getenv("ENFORCE_COST_LIMITS", "true").lower() == "true"
+
+    # Security: prevent the server from booting with well-known insecure defaults.
+    # Set MNEME_SECRET_KEY and MNEME_ADMIN_PASSWORD to non-default values before
+    # starting. This check does NOT run during unit-test imports because
+    # tests use worker code paths that never instantiate this Settings object.
+    @model_validator(mode="after")
+    def _reject_insecure_defaults(self) -> "Settings":
+        errors = []
+        if self.secret_key == "change-me" or self.secret_key == "change-me-in-local-env":
+            errors.append(
+                "MNEME_SECRET_KEY is still the insecure default. "
+                "Set it to a random 32-character string."
+            )
+        if self.admin_password == "admin":
+            errors.append(
+                "MNEME_ADMIN_PASSWORD is still the insecure default. "
+                "Set it to a strong password."
+            )
+        if errors:
+            raise ValueError(
+                "Server refused to start with insecure default credentials:\n"
+                + "\n".join(f"  • {e}" for e in errors)
+            )
+        return self
 
 
 settings = Settings()

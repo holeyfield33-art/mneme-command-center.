@@ -51,3 +51,15 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local task execution artifacts
+task-*_claude_run.json
+task-*_claude_stdout.log
+task-*_claude_stderr.log
+plans/task-*_claude_run.json
+plans/task-*_claude_stdout.log
+plans/task-*_claude_stderr.log
+
+# UI test output
+apps/dashboard/test-results/
+apps/dashboard/playwright-report/

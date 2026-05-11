@@ -9,7 +9,7 @@ import re
 from ..database import get_db
 from ..models import Task, TaskStatus, TaskMode, RiskLevel, Log, LogLevel, Approval, ApprovalStatus, ApprovalType, Project
 from ..events import broadcast_now
-from ..utils import generate_id, verify_token
+from ..utils import generate_id, verify_token, sanitize_objective
 from ..notifier import ApiNotifier
 from ..config import settings
 from ..security.vault import vault_service
@@ -122,10 +122,16 @@ def create_task(
             detail="Project not found"
         )
     
+    # Sanitize objective: strip whitespace/nulls, truncate, and reject prompt-injection markers.
+    try:
+        clean_objective = sanitize_objective(request.objective)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
     task = Task(
         id=generate_id(),
         project_id=request.project_id,
-        objective=request.objective,
+        objective=clean_objective,
         status=TaskStatus.QUEUED,
         mode=TaskMode(request.mode),
         risk_level=RiskLevel(request.risk_level),

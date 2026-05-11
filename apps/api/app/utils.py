@@ -40,6 +40,29 @@ def verify_token(token: str) -> bool:
         return False
 
 
+# Canonical prompt-injection markers that must never reach the LLM system prompt.
+_INJECTION_PATTERNS = ["ignore previous instructions", "###system"]
+
+
+def sanitize_objective(text: str) -> str:
+    """Clean task objective before it is stored or forwarded to the agent.
+
+    Raises ValueError for strings that contain known prompt-injection markers
+    so the caller can translate this into an HTTP 422 response.
+    """
+    text = text.strip()              # Remove leading/trailing whitespace
+    text = text.replace("\x00", "")  # Strip null bytes
+    text = text[:4000]               # Hard truncation — protects token budget
+
+    lower = text.lower()
+    for marker in _INJECTION_PATTERNS:
+        if marker in lower:
+            raise ValueError(
+                f"Objective contains a disallowed injection marker: '{marker}'"
+            )
+    return text
+
+
 def is_emergency_stop_active(db: Session) -> bool:
     """Check if emergency stop flag is set."""
     state = db.query(SystemState).filter(SystemState.key == "emergency_stop").first()
