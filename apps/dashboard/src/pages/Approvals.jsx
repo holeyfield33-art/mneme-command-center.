@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { approvals, tasks } from '../api'
 import ApprovalCard from '../components/ApprovalCard'
 import ApprovalsAuditTimeline from '../components/ApprovalsAuditTimeline'
+import ApprovalBacklogCorrelation from '../components/ApprovalBacklogCorrelation'
 
 function getSlaHoursByRisk(riskLevel) {
   const risk = String(riskLevel || 'medium').toLowerCase()
@@ -273,6 +274,8 @@ export default function Approvals() {
       <div style={{ marginBottom: '1.1rem' }}>
         <ApprovalsAuditTimeline />
       </div>
+
+      <ApprovalBacklogCorrelation approvals={approvalList} taskDetails={taskDetails} />
 
       <div className="mneme-surface mneme-enter" style={{ marginBottom: '1.1rem', padding: '0.9rem 1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
