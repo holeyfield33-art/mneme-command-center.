@@ -4,6 +4,7 @@ Mneme Worker - Polls for tasks and creates approval requests.
 Runs locally to process tasks from the API.
 """
 
+import logging
 import os
 import sys
 import time
@@ -39,6 +40,12 @@ from worker.repo_planning import (
 from worker.checkpointer import clear_checkpoint, load_checkpoint, save_checkpoint
 from worker.notifier import WorkerNotifier
 from worker.llm_client import build_agent_loop
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 class MnemeWorker:
@@ -101,15 +108,15 @@ class MnemeWorker:
                 self.last_heartbeat = datetime.now()
                 data = response.json()
                 if data.get("emergency_stop"):
-                    print("[WARN] Emergency stop is active. Will not process tasks.")
+                    logger.warning("Emergency stop is active. Will not process tasks.")
                     return False
-                print(f"[{self.last_heartbeat.isoformat()}] Heartbeat sent")
+                logger.info("Heartbeat sent at %s", self.last_heartbeat.isoformat())
                 return True
             else:
-                print(f"[ERROR] Heartbeat failed: {response.status_code}")
+                logger.error("Heartbeat failed: %s", response.status_code)
                 return False
         except requests.RequestException as e:
-            print(f"[ERROR] Heartbeat error: {e}")
+            logger.exception("Heartbeat error")
             return False
 
     def get_queued_tasks(self) -> list:
@@ -121,13 +128,13 @@ class MnemeWorker:
             )
             if response.status_code == 200:
                 tasks = response.json()
-                print(f"[INFO] Found {len(tasks)} queued tasks")
+                logger.info("Found %d queued tasks", len(tasks))
                 return tasks
             else:
-                print(f"[ERROR] Failed to get tasks: {response.status_code}")
+                logger.error("Failed to get tasks: %s", response.status_code)
                 return []
         except requests.RequestException as e:
-            print(f"[ERROR] Error getting tasks: {e}")
+            logger.exception("Error getting tasks")
             return []
 
     def get_execution_ready_tasks(self) -> list:
@@ -139,12 +146,12 @@ class MnemeWorker:
             )
             if response.status_code == 200:
                 tasks = response.json()
-                print(f"[INFO] Found {len(tasks)} execution-ready tasks")
+                logger.info("Found %d execution-ready tasks", len(tasks))
                 return tasks
-            print(f"[ERROR] Failed to get execution tasks: {response.status_code}")
+            logger.error("Failed to get execution tasks: %s", response.status_code)
             return []
         except requests.RequestException as e:
-            print(f"[ERROR] Error getting execution tasks: {e}")
+            logger.exception("Error getting execution tasks")
             return []
 
     def broadcast_event(self, event_type: str, data: Dict[str, Any]) -> None:
@@ -166,13 +173,13 @@ class MnemeWorker:
                 timeout=5
             )
             if response.status_code == 200:
-                print(f"[INFO] Task {task_id} marked as planning")
+                logger.info("Task %s marked as planning", task_id)
                 return True
             else:
-                print(f"[ERROR] Failed to mark task as planning: {response.status_code}")
+                logger.error("Failed to mark task as planning: %s", response.status_code)
                 return False
         except requests.RequestException as e:
-            print(f"[ERROR] Error marking task as planning: {e}")
+            logger.exception("Error marking task as planning")
             return False
 
     def mark_task_failed(self, task_id: str) -> bool:
@@ -183,13 +190,13 @@ class MnemeWorker:
                 timeout=5
             )
             if response.status_code == 200:
-                print(f"[INFO] Task {task_id} marked as failed")
+                logger.info("Task %s marked as failed", task_id)
                 clear_checkpoint()
                 return True
-            print(f"[ERROR] Failed to mark task as failed: {response.status_code}")
+            logger.error("Failed to mark task as failed: %s", response.status_code)
             return False
         except requests.RequestException as e:
-            print(f"[ERROR] Error marking task as failed: {e}")
+            logger.exception("Error marking task as failed")
             return False
 
     def update_task_status(self, task_id: str, new_status: str) -> bool:
@@ -234,17 +241,17 @@ class MnemeWorker:
                 timeout=5
             )
             if response.status_code == 200:
-                print(f"[LOG] [{level.upper()}] {message}")
+                logger.info("[%s] %s", level.upper(), message)
                 self.broadcast_event(
                     "task_log_added",
                     {"task_id": task_id, "level": level, "message": message},
                 )
                 return True
             else:
-                print(f"[ERROR] Failed to add log: {response.status_code}")
+                logger.error("Failed to add log: %s", response.status_code)
                 return False
         except requests.RequestException as e:
-            print(f"[ERROR] Error adding log: {e}")
+            logger.exception("Error adding log")
             return False
 
     def create_approval_request(
@@ -270,7 +277,7 @@ class MnemeWorker:
                 timeout=5
             )
             if response.status_code == 200:
-                print(f"[INFO] Approval request created for task {task_id}")
+                logger.info("Approval request created for task %s", task_id)
                 self.broadcast_event(
                     "approval_created",
                     {
@@ -281,10 +288,10 @@ class MnemeWorker:
                 )
                 return True
             else:
-                print(f"[ERROR] Failed to create approval request: {response.status_code}")
+                logger.error("Failed to create approval request: %s", response.status_code)
                 return False
         except requests.RequestException as e:
-            print(f"[ERROR] Error creating approval request: {e}")
+            logger.exception("Error creating approval request")
             return False
 
     def _profile_path(self, project_name: str) -> Path:
@@ -748,8 +755,8 @@ class MnemeWorker:
     def process_task(self, task: Dict[str, Any]) -> bool:
         """Process a single task."""
         task_id = task['id']
-        print(f"\n[INFO] Processing task: {task_id}")
-        print(f"[INFO] Objective: {task['objective']}")
+        logger.info("Processing task: %s", task_id)
+        logger.info("Objective: %s", task["objective"])
 
         checkpoint = load_checkpoint()
         if checkpoint and checkpoint.get("task_id") == task_id and checkpoint.get("step") == "plan_created":
@@ -853,7 +860,7 @@ class MnemeWorker:
             f"Mneme needs plan approval.\nReview: {self.notifier.task_link(task_id)}".strip(),
             task_id=task_id,
         )
-        print(f"[INFO] Task {task_id} is now waiting for approval")
+        logger.info("Task %s is now waiting for approval", task_id)
         return True
 
     def process_execution_task(self, task: Dict[str, Any]) -> bool:
@@ -982,12 +989,11 @@ class MnemeWorker:
 
     def run(self, heartbeat_interval: int = 30):
         """Main worker loop."""
-        print(f"[INFO] Mneme Worker started")
-        print(f"[INFO] Worker ID: {self.worker_id}")
-        print(f"[INFO] Hostname: {self.hostname}")
-        print(f"[INFO] API URL: {self.api_url}")
-        print(f"[INFO] Heartbeat interval: {heartbeat_interval}s")
-        print("-" * 60)
+        logger.info("Mneme Worker started")
+        logger.info("Worker ID: %s", self.worker_id)
+        logger.info("Hostname: %s", self.hostname)
+        logger.info("API URL: %s", self.api_url)
+        logger.info("Heartbeat interval: %ds", heartbeat_interval)
 
         if not self._online_notified:
             self._notify("Mneme worker is online.")
@@ -1002,7 +1008,7 @@ class MnemeWorker:
                 # Send heartbeat
                 if current_time - last_heartbeat_time >= heartbeat_interval:
                     if not self.heartbeat():
-                        print("[WARN] Failed to send heartbeat")
+                        logger.warning("Failed to send heartbeat")
                     last_heartbeat_time = current_time
 
                 # Get and process tasks
@@ -1011,29 +1017,23 @@ class MnemeWorker:
                     try:
                         self.process_task(task)
                     except Exception as e:
-                        print(f"[ERROR] Exception processing task: {e}")
-                        import traceback
-                        traceback.print_exc()
+                        logger.exception("Exception processing task: %s", e)
 
                 execution_tasks = self.get_execution_ready_tasks()
                 for task in execution_tasks:
                     try:
                         self.process_execution_task(task)
                     except Exception as e:
-                        print(f"[ERROR] Exception executing task: {e}")
-                        import traceback
-                        traceback.print_exc()
+                        logger.exception("Exception executing task: %s", e)
 
                 # Sleep briefly before next check
                 time.sleep(5)
 
         except KeyboardInterrupt:
-            print("\n[INFO] Worker shutting down...")
+            logger.info("Worker shutting down...")
             self.running = False
         except Exception as e:
-            print(f"\n[ERROR] Unexpected error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Unexpected error: %s", e)
 
 
 def main():

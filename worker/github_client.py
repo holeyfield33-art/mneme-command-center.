@@ -5,10 +5,13 @@ Uses the GitHub REST API via httpx + git CLI for cloning.
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import re
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def _github_headers(token: str) -> dict[str, str]:
