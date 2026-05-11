@@ -41,5 +41,16 @@ class Settings:
     public_dashboard_url: str = os.getenv("PUBLIC_DASHBOARD_URL", "")
     notifications_enabled: bool = os.getenv("NOTIFICATIONS_ENABLED", "false").lower() == "true"
 
+    # ── Phase 0 security controls ───────────────────────────────────────────
+    vault_auto_lock_seconds: int = int(os.getenv("VAULT_AUTO_LOCK_SECONDS", "1800"))
+    reauth_window_seconds: int = int(os.getenv("REAUTH_WINDOW_SECONDS", "300"))
+    require_reauth_for_remote_push: bool = os.getenv("REQUIRE_REAUTH_FOR_REMOTE_PUSH", "true").lower() == "true"
+    agent_memory_limit_mb: int = int(os.getenv("AGENT_MEMORY_LIMIT_MB", "512"))
+
+    # ── Phase 5 cost guardrails ───────────────────────────────────────────
+    daily_cost_limit_usd: float = float(os.getenv("DAILY_COST_LIMIT_USD", "10"))
+    task_cost_limit_usd: float = float(os.getenv("TASK_COST_LIMIT_USD", "1"))
+    enforce_cost_limits: bool = os.getenv("ENFORCE_COST_LIMITS", "true").lower() == "true"
+
 
 settings = Settings()

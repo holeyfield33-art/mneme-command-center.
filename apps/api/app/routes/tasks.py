@@ -12,6 +12,8 @@ from ..events import broadcast_now
 from ..utils import generate_id, verify_token
 from ..notifier import ApiNotifier
 from ..config import settings
+from ..security.vault import vault_service
+from ..services.orchestration import AgentOrchestrator
 from .auth import verify_token_header
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -385,7 +387,16 @@ def get_task_github_pr_status(
             detail="Task not found"
         )
 
-    if not settings.github_token.strip():
+    try:
+        github_token = vault_service.maybe_resolve_secret(settings.github_token.strip())
+    except RuntimeError:
+        return {
+            "configured": False,
+            "status": "vault_locked",
+            "pr_url": None,
+        }
+
+    if not github_token:
         return {
             "configured": False,
             "status": "missing_github_token",
@@ -409,7 +420,7 @@ def get_task_github_pr_status(
 
     from worker.github_client import get_pull_request_status
 
-    ok, payload = get_pull_request_status(pr_url, settings.github_token.strip())
+    ok, payload = get_pull_request_status(pr_url, github_token)
     if not ok:
         return {
             "configured": True,
@@ -424,3 +435,139 @@ def get_task_github_pr_status(
         "pr_url": pr_url,
         "pr": payload,
     }
+
+
+# ============================================================================
+# Orchestration Integration Endpoints
+# ============================================================================
+
+
+@router.post("/{task_id}/orchestration/enable")
+def enable_task_orchestration(
+    task_id: str,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    """
+    Enable multi-phase orchestration for a task.
+    
+    Initializes the 4-phase workflow (Planner → Implementer → Tester → Reviewer).
+    
+    Args:
+        task_id: Task ID
+    
+    Returns:
+        Workflow initialization status
+    """
+    verify_token_header(authorization)
+    
+    # Verify task exists
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    orchestrator = AgentOrchestrator(task_id, db)
+    
+    try:
+        orchestrator.initialize_workflow()
+        status_result = orchestrator.get_workflow_status()
+        
+        # Log the orchestration enablement
+        db.add(
+            Log(
+                id=generate_id(),
+                task_id=task_id,
+                level=LogLevel.INFO,
+                message="Multi-phase orchestration enabled: Planner → Implementer → Tester → Reviewer"
+            )
+        )
+        db.commit()
+        
+        broadcast_now(
+            "orchestration_enabled",
+            {
+                "task_id": task_id,
+                "project_id": task.project_id,
+                "phases": list(status_result["phases"].keys())
+            }
+        )
+        
+        return {
+            "enabled": True,
+            "task_id": task_id,
+            "workflow_status": status_result,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{task_id}/orchestration/start-phase")
+def start_task_phase(
+    task_id: str,
+    phase_type: str,
+    context: dict = None,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    """
+    Start execution of a specific phase with context.
+    
+    Args:
+        task_id: Task ID
+        phase_type: Type of phase (planner, implementer, tester, reviewer)
+        context: Input context for the phase
+    
+    Returns:
+        Started phase information
+    """
+    verify_token_header(authorization)
+    
+    # Verify task exists
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Validate phase type
+    from ..models import AgentPhaseType
+    try:
+        phase_enum = AgentPhaseType[phase_type.upper()]
+    except KeyError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid phase type. Must be one of: {', '.join([p.value for p in AgentPhaseType])}"
+        )
+    
+    orchestrator = AgentOrchestrator(task_id, db)
+    
+    try:
+        phase = orchestrator.start_phase(phase_enum, context or {})
+        
+        # Log phase start
+        db.add(
+            Log(
+                id=generate_id(),
+                task_id=task_id,
+                level=LogLevel.INFO,
+                message=f"Phase started: {phase_type.lower()}"
+            )
+        )
+        db.commit()
+        
+        broadcast_now(
+            "phase_started",
+            {
+                "task_id": task_id,
+                "phase_type": phase_type,
+                "phase_id": phase.id,
+            }
+        )
+        
+        return {
+            "phase_id": phase.id,
+            "phase_type": phase.phase_type.value,
+            "status": phase.status.value,
+            "started_at": phase.started_at.isoformat(),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+

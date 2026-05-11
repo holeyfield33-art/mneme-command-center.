@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { approvals, tasks, system } from '../api'
+import { useLayers } from '../context/LayerContext'
 
 export default function TaskDetail() {
   const { taskId } = useParams()
   const navigate = useNavigate()
+  const { showModal } = useLayers()
   const [task, setTask] = useState(null)
   const [logs, setLogs] = useState([])
   const [taskApprovals, setTaskApprovals] = useState([])
@@ -193,6 +195,21 @@ export default function TaskDetail() {
         }}
       >
         ← Back
+      </button>
+      <button
+        onClick={() => showModal('layer2', { taskId })}
+        style={{
+          marginBottom: '1rem',
+          marginLeft: '0.6rem',
+          padding: '0.5rem 1rem',
+          backgroundColor: '#2c3e50',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+      >
+        View Workflow Graph
       </button>
 
       {error && <div style={{ color: 'red', marginBottom: '1rem', padding: '1rem', backgroundColor: '#ffe6e6', borderRadius: '4px' }}>{error}</div>}

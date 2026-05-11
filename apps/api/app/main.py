@@ -5,9 +5,9 @@ from sse_starlette.sse import EventSourceResponse
 from sqlalchemy import inspect, text
 
 from .database import engine, Base
-from .models import Project, Task, Approval, Log, Worker, SystemState
+from .models import Project, Task, Approval, Log, Worker, SystemState, AuditLog
 from .events import manager
-from .routes import auth, projects, tasks, approvals, worker, system
+from .routes import auth, projects, tasks, approvals, worker, system, vault, audit, orchestration, skills
 
 
 def ensure_schema_compatibility() -> None:
@@ -72,6 +72,10 @@ app.include_router(tasks.router)
 app.include_router(approvals.router)
 app.include_router(worker.router)
 app.include_router(system.router)
+app.include_router(vault.router)
+app.include_router(audit.router)
+app.include_router(orchestration.router)
+app.include_router(skills.router)
 
 
 @app.get("/health")

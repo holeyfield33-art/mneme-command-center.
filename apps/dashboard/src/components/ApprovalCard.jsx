@@ -9,13 +9,47 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
     return maybeFiles.filter((file) => file && file.path)
   }, [approval])
 
+  const confidenceModel = useMemo(() => {
+    const risk = (approval?.risk_level || 'medium').toLowerCase()
+    const fileCount = files.length
+    const summaryLength = (approval?.summary || '').length
+
+    const baseByRisk = {
+      low: { confidence: 86, blast: 'contained' },
+      medium: { confidence: 71, blast: 'moderate' },
+      high: { confidence: 58, blast: 'broad' },
+    }
+
+    const base = baseByRisk[risk] || baseByRisk.medium
+    const confidencePenalty = Math.min(18, Math.floor(fileCount / 2) + (summaryLength > 1200 ? 6 : 0))
+    const confidence = Math.max(32, base.confidence - confidencePenalty)
+
+    let confidenceBand = 'High'
+    if (confidence < 75) confidenceBand = 'Medium'
+    if (confidence < 55) confidenceBand = 'Low'
+
+    return {
+      confidence,
+      confidenceBand,
+      blastRadius: fileCount >= 8 ? 'repo-wide' : base.blast,
+      changedFiles: fileCount,
+    }
+  }, [approval, files])
+
+  const riskAccent = {
+    low: '#2f9e6f',
+    medium: '#d9822b',
+    high: '#c44236',
+  }[(approval?.risk_level || 'medium').toLowerCase()] || '#d9822b'
+
   return (
     <div
+      className="mneme-surface mneme-enter"
       style={{
         padding: '1.5rem',
         backgroundColor: 'white',
         borderRadius: '8px',
-        border: '2px solid #ff6b6b'
+        border: `2px solid ${riskAccent}`
       }}
     >
       <h3>{approval.title}</h3>
@@ -27,6 +61,32 @@ export default function ApprovalCard({ approval, task, onApprove, onReject, onMo
           <strong>Task:</strong> {task.objective}
         </p>
       )}
+
+      <div
+        style={{
+          marginTop: '1rem',
+          padding: '0.9rem',
+          borderRadius: '8px',
+          backgroundColor: '#f5f9fc',
+          border: '1px solid #d9e3ec',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(120px, 1fr))',
+          gap: '0.75rem',
+        }}
+      >
+        <div>
+          <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>Confidence</div>
+          <div style={{ fontWeight: 700, color: '#223649' }}>{confidenceModel.confidence}% ({confidenceModel.confidenceBand})</div>
+        </div>
+        <div>
+          <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>Blast Radius</div>
+          <div style={{ fontWeight: 700, color: '#223649' }}>{confidenceModel.blastRadius}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: '0.76rem', color: '#5b6a79' }}>Changed Files</div>
+          <div style={{ fontWeight: 700, color: '#223649' }}>{confidenceModel.changedFiles}</div>
+        </div>
+      </div>
 
       <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '4px', maxHeight: '300px', overflowY: 'auto' }}>
         <strong>Plan:</strong>

@@ -6,7 +6,20 @@ export default function Approvals() {
   const [approvalList, setApprovalList] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [taskDetails, setTaskDetails] = useState({})
+  const [modifyDraft, setModifyDraft] = useState({
+    approvalId: '',
+    reasonCode: 'scope_change',
+    details: '',
+  })
+
+  const modifyReasonOptions = [
+    { value: 'scope_change', label: 'Scope change needed' },
+    { value: 'test_coverage_gap', label: 'Test coverage gap' },
+    { value: 'risk_reduction', label: 'Risk reduction required' },
+    { value: 'rollback_plan', label: 'Rollback plan unclear' },
+  ]
 
   const loadApprovals = useCallback(async () => {
     try {
@@ -74,26 +87,50 @@ export default function Approvals() {
   }
 
   const handleModify = (approvalId) => {
-    const details = window.prompt('Add modification guidance for this approval:')
-    if (!details) {
+    setModifyDraft({
+      approvalId,
+      reasonCode: 'scope_change',
+      details: '',
+    })
+  }
+
+  const submitModifyDraft = () => {
+    if (!modifyDraft.approvalId || !modifyDraft.details.trim()) {
+      setError('Please provide modification details before submitting.')
       return
     }
-    setError(`Modification requested for ${approvalId}: ${details}`)
+    setInfo(
+      `Structured modify request prepared for ${modifyDraft.approvalId}: ` +
+      `${modifyDraft.reasonCode} - ${modifyDraft.details.trim()}`
+    )
+    setError('')
+    setModifyDraft({ approvalId: '', reasonCode: 'scope_change', details: '' })
   }
 
   if (loading) {
-    return <div style={{ padding: '2rem' }}>Loading...</div>
+    return (
+      <div style={{ padding: '2rem' }}>
+        <h1 style={{ marginBottom: '1rem' }}>Pending Approvals</h1>
+        <div className="mneme-surface mneme-enter" style={{ padding: '1rem' }}>
+          <div className="mneme-skeleton" style={{ height: '1.2rem', marginBottom: '0.75rem' }} />
+          <div className="mneme-skeleton" style={{ height: '3.6rem', marginBottom: '0.6rem' }} />
+          <div className="mneme-skeleton" style={{ height: '3.6rem' }} />
+        </div>
+      </div>
+    )
   }
 
   return (
     <div style={{ padding: '2rem' }}>
       <h1>Pending Approvals</h1>
 
-      {error && <div style={{ color: 'red', marginBottom: '1rem', padding: '1rem', backgroundColor: '#ffe6e6', borderRadius: '4px' }}>{error}</div>}
+      {error && <div className="mneme-alert error">{error}</div>}
+      {info && <div className="mneme-alert info">{info}</div>}
 
       {approvalList.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '2rem' }}>
-          <p>No pending approvals</p>
+        <div className="mneme-empty mneme-enter" style={{ textAlign: 'center' }}>
+          <p style={{ fontWeight: 700, marginBottom: '0.25rem', color: '#30465c' }}>No pending approvals</p>
+          <p>Workflow queue is clear. New risk-gated actions will appear here in real time.</p>
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '1.5rem' }}>
@@ -110,6 +147,70 @@ export default function Approvals() {
               />
             )
           })}
+        </div>
+      )}
+
+      {modifyDraft.approvalId && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10010,
+          }}
+          onClick={() => setModifyDraft({ approvalId: '', reasonCode: 'scope_change', details: '' })}
+        >
+          <div
+            className="mneme-surface mneme-enter"
+            style={{
+              width: 'min(620px, 92vw)',
+              backgroundColor: 'white',
+              padding: '1.2rem',
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, marginBottom: '0.8rem' }}>Structured Modify Request</h3>
+            <p style={{ marginBottom: '0.75rem', color: '#526170', fontSize: '0.92rem' }}>
+              Approval ID: {modifyDraft.approvalId}
+            </p>
+            <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>Reason Code</label>
+            <select
+              value={modifyDraft.reasonCode}
+              onChange={(event) => setModifyDraft((prev) => ({ ...prev, reasonCode: event.target.value }))}
+              style={{ width: '100%', marginBottom: '0.75rem', padding: '0.5rem', borderRadius: '6px', border: '1px solid #c9d4de' }}
+            >
+              {modifyReasonOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>Reviewer Guidance</label>
+            <textarea
+              value={modifyDraft.details}
+              onChange={(event) => setModifyDraft((prev) => ({ ...prev, details: event.target.value }))}
+              placeholder="Describe exact changes needed before approval."
+              style={{ width: '100%', minHeight: '120px', padding: '0.6rem', borderRadius: '6px', border: '1px solid #c9d4de' }}
+            />
+            <div style={{ marginTop: '0.9rem', display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+              <button
+                onClick={() => setModifyDraft({ approvalId: '', reasonCode: 'scope_change', details: '' })}
+                style={{ padding: '0.5rem 0.8rem', border: 'none', borderRadius: '6px', backgroundColor: '#7d8a96', color: 'white', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitModifyDraft}
+                style={{ padding: '0.5rem 0.8rem', border: 'none', borderRadius: '6px', backgroundColor: '#1f7a8c', color: 'white', cursor: 'pointer', fontWeight: 700 }}
+              >
+                Save Modify Guidance
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
