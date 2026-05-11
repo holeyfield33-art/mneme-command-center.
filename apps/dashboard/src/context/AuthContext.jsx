@@ -14,6 +14,30 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('token', newToken)
   }
 
+  const _loginFromResponse = (response, errorCode) => {
+    const newToken = response?.data?.access_token
+    if (!newToken) {
+      throw new Error(errorCode)
+    }
+    login(newToken)
+    return newToken
+  }
+
+  const loginWithPassword = async (password) => {
+    const response = await auth.login(password)
+    return _loginFromResponse(response, 'password_login_failed')
+  }
+
+  const loginWithGoogle = async (idToken) => {
+    const response = await auth.googleLogin(idToken)
+    return _loginFromResponse(response, 'google_login_failed')
+  }
+
+  const loginWithMobileExchange = async (deviceCode, oneTimeToken) => {
+    const response = await auth.mobileExchange(deviceCode, oneTimeToken)
+    return _loginFromResponse(response, 'mobile_exchange_failed')
+  }
+
   const logout = () => {
     setToken(null)
     setIsAuthenticated(false)
@@ -33,14 +57,7 @@ export const AuthProvider = ({ children }) => {
 
   const completeReauth = async (password) => {
     const callback = reauth.onComplete
-    const response = await auth.login(password)
-    const newToken = response?.data?.access_token
-
-    if (!newToken) {
-      throw new Error('reauth_login_failed')
-    }
-
-    login(newToken)
+    await loginWithPassword(password)
     setReauth({ required: false, onComplete: null })
 
     if (callback) {
@@ -54,6 +71,9 @@ export const AuthProvider = ({ children }) => {
         token,
         isAuthenticated,
         login,
+        loginWithPassword,
+        loginWithGoogle,
+        loginWithMobileExchange,
         logout,
         reauth,
         triggerReauth,
