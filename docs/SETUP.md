@@ -5,11 +5,13 @@
 2. [Backend Setup](#backend-setup)
 3. [Dashboard Setup](#dashboard-setup)
 4. [Worker Setup](#worker-setup)
-5. [Running Tests](#running-tests)
-6. [Usage Guide](#usage-guide)
-7. [API Reference](#api-reference)
-8. [Database Schema](#database-schema)
-9. [Troubleshooting](#troubleshooting)
+5. [Ollama (Local Model) Setup](#ollama-local-model-setup)
+6. [Running Tests](#running-tests)
+7. [Usage Guide](#usage-guide)
+8. [Dashboard Features](#dashboard-features)
+9. [API Reference](#api-reference)
+10. [Database Schema](#database-schema)
+11. [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 
@@ -179,6 +181,77 @@ Output:
 [INFO] Found 0 queued tasks
 ```
 
+## Ollama (Local Model) Setup
+
+Mneme supports routing tasks to a locally-hosted Ollama model so no cloud API key is needed.
+
+### Step 1: Install Ollama
+
+```bash
+# macOS / Linux
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Or download from https://ollama.com/download
+```
+
+### Step 2: Pull a coding model
+
+```bash
+# Recommended for code tasks:
+ollama pull qwen2.5-coder
+
+# Alternatives:
+ollama pull codestral
+ollama pull llama3.1
+ollama pull mistral
+```
+
+### Step 3: Start Ollama server
+
+By default Ollama listens on `http://localhost:11434`. Start it with:
+
+```bash
+ollama serve
+```
+
+Verify it is running:
+```bash
+curl http://localhost:11434/api/tags
+# Should return a JSON list of installed models
+```
+
+### Step 4: Configure the worker to use Ollama
+
+Set these environment variables before starting the worker:
+
+```bash
+export OLLAMA_BASE_URL=http://localhost:11434
+export OLLAMA_MODEL=qwen2.5-coder       # or whichever model you pulled
+```
+
+If Ollama is on a different machine (e.g. a local GPU server):
+
+```bash
+export OLLAMA_BASE_URL=http://192.168.1.50:11434
+```
+
+### Step 5: Set the project model in the dashboard
+
+1. Open the dashboard → navigate to your project
+2. Under **Model Override**, uncheck "Inherit global provider and model"
+3. Set **Provider** to `ollama`
+4. Set **Model** to the name of the model you pulled (e.g. `qwen2.5-coder`)
+5. Click **Save**
+
+All new tasks for that project will now be routed to your local Ollama instance.
+
+### Notes
+
+- Ollama models run entirely on your hardware — no API key required.
+- `qwen2.5-coder` (7B) is the recommended starting point for code tasks; use a 13B+ model if you have ≥16 GB VRAM.
+- Ollama must be reachable from the machine running the worker (same host is easiest).
+- For GPU acceleration, Ollama auto-detects CUDA/Metal; no extra configuration needed.
+
 ## Running Tests
 
 ```bash
@@ -265,6 +338,35 @@ MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /home/codespace/.python/current/
 2. Worker will gracefully stop processing
 3. Click again to clear emergency stop
 4. Worker will resume processing
+
+## Dashboard Features
+
+### Approvals Queue (`/approvals`)
+
+| Feature | Description |
+|---|---|
+| **SLA Timer** | Live countdown per approval based on risk level (High: 2h, Medium: 8h, Low: 24h) |
+| **Urgency Sort** | High-risk approvals always appear first, then oldest-first within each tier |
+| **Queue Summary** | Strip above the queue showing total / high / medium / low counts |
+| **Audit Timeline** | Chronological log of every approve / reject / modify action |
+| **Decision Brief** | Auto-generated context panel with recommended action per approval |
+| **Role Summaries** | Persona toggle (Operator / Reviewer / Manager) with tailored guidance |
+| **Incident Mode** | Toggle to filter by High Risk / Overdue SLA / Both; shows overdue count |
+| **Bulk Actions** | Checkbox-select visible approvals and approve/reject in one click |
+| **Modify Request** | Structured modify modal with reason code + reviewer guidance, persisted to audit log |
+| **Backlog Correlation** | Panel grouping pending approvals by project to identify the biggest blockers |
+
+### Project Detail (`/projects/:id`)
+
+| Feature | Description |
+|---|---|
+| **Task Pipeline Graph** | SVG DAG showing all tasks in creation order with status colours, approval gate diamonds, and click-to-navigate |
+| **Model Override** | Set a per-project provider (anthropic / openai / google / ollama) and model name that overrides the global default |
+
+### General
+
+- **Real-time updates**: All pages listen for SSE events from the API and refresh automatically.
+- **Emergency Stop**: Red button stops the worker from picking up new tasks immediately.
 
 ## API Reference
 
