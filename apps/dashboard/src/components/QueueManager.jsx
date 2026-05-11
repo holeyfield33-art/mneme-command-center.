@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { tasks, system } from '../api'
 import { useLayers } from '../context/LayerContext'
 
@@ -19,13 +19,7 @@ export default function QueueManager() {
   const [draggedTask, setDraggedTask] = useState(null)
   const layer = layers?.layer1 // Reuse layer 1 socket or show separately
 
-  useEffect(() => {
-    loadQueue()
-    const interval = setInterval(loadQueue, 5000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const loadQueue = async () => {
+  const loadQueue = useCallback(async () => {
     try {
       const res = await tasks.list()
       const queued = res.data?.filter(t => ['queued', 'pending', 'planning'].includes(t.status)) || []
@@ -33,7 +27,20 @@ export default function QueueManager() {
     } catch (err) {
       console.error('Failed to load queue:', err)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadQueue()
+  }, [loadQueue])
+
+  useEffect(() => {
+    const onSSE = () => {
+      loadQueue()
+    }
+
+    window.addEventListener('mneme:sse', onSSE)
+    return () => window.removeEventListener('mneme:sse', onSSE)
+  }, [loadQueue])
 
   const handlePauseTask = async (taskId) => {
     try {

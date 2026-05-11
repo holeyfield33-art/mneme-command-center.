@@ -79,18 +79,6 @@ export default function TaskDetail() {
     loadArtifact(artifactType)
   }, [taskId, artifactType])
 
-  useEffect(() => {
-    if (!prStatus?.pr_url) {
-      return
-    }
-
-    const timer = setInterval(() => {
-      refreshPrStatus()
-    }, 20000)
-
-    return () => clearInterval(timer)
-  }, [prStatus?.pr_url, refreshPrStatus])
-
   const loadArtifact = async (selectedType) => {
     setLoadingArtifact(true)
     setArtifactError('')
@@ -352,7 +340,7 @@ export default function TaskDetail() {
                   {prStatusLoading ? 'Refreshing...' : 'Refresh'}
                 </button>
                 <span style={{ fontSize: '0.8rem', color: '#666' }}>
-                  Auto-refresh every 20s{lastPrRefreshAt ? ` · Last ${lastPrRefreshAt.toLocaleTimeString()}` : ''}
+                  SSE/manual refresh{lastPrRefreshAt ? ` · Last ${lastPrRefreshAt.toLocaleTimeString()}` : ''}
                 </span>
               </div>
             </div>

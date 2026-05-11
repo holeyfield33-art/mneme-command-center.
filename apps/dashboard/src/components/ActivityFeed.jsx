@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { system } from '../api'
 import { useLayers } from '../context/LayerContext'
 
@@ -18,60 +18,48 @@ export default function ActivityFeed() {
   const { layers, toggleMinimize } = useLayers()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const layer = layers?.layer1
 
   if (!layer?.visible) return null
 
+  const loadEvents = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const res = await system.getAuditEvents(50)
+      const nextEvents = (res?.data || []).map(log => ({
+        id: log.id,
+        type: log.operation,
+        actor: log.actor,
+        resource: log.resource,
+        status: log.status,
+        timestamp: new Date(log.created_at),
+        message: `${log.actor} ${log.operation} ${log.resource}`,
+        details: log.details
+      }))
+      setEvents(nextEvents)
+    } catch (err) {
+      console.error('Failed to load audit events:', err)
+      setEvents([])
+      setError('Activity feed unavailable. Check API connectivity and authentication, then refresh.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        // Try to load audit events (Phase 0 added this endpoint)
-        const res = await system.getAuditEvents?.call?.(this, { limit: 50 })
-        if (res?.data) {
-          // Transform audit logs into activity feed format
-          setEvents(res.data.map(log => ({
-            id: log.id,
-            type: log.operation,
-            actor: log.actor,
-            resource: log.resource,
-            status: log.status,
-            timestamp: new Date(log.created_at),
-            message: `${log.actor} ${log.operation} ${log.resource}`,
-            details: log.details
-          })))
-        }
-      } catch (err) {
-        console.error('Failed to load audit events:', err)
-        // Fallback: create mock events for demo
-        setEvents([
-          {
-            id: '1',
-            type: 'approval_approved',
-            actor: 'user',
-            resource: 'task-123',
-            status: 'ok',
-            timestamp: new Date(),
-            message: 'Approved PR creation for task-123',
-            details: {}
-          },
-          {
-            id: '2',
-            type: 'task_status_change',
-            actor: 'system',
-            resource: 'task-123',
-            status: 'ok',
-            timestamp: new Date(Date.now() - 300000),
-            message: 'Task status changed to executing',
-            details: { prev_status: 'planning', new_status: 'executing' }
-          }
-        ])
-      }
+    loadEvents()
+  }, [loadEvents])
+
+  useEffect(() => {
+    const onSSE = () => {
+      loadEvents()
     }
 
-    loadEvents()
-    const interval = setInterval(loadEvents, 10000)
-    return () => clearInterval(interval)
-  }, [])
+    window.addEventListener('mneme:sse', onSSE)
+    return () => window.removeEventListener('mneme:sse', onSSE)
+  }, [loadEvents])
 
   const getEventIcon = (type) => {
     switch (type) {
@@ -183,7 +171,19 @@ export default function ActivityFeed() {
         display: layer.minimized ? 'none' : 'block',
         padding: '0.5rem 0'
       }}>
-        {events.length === 0 ? (
+        {error ? (
+          <div style={{ padding: '1rem', color: '#ffb3b3', textAlign: 'left' }}>
+            <div style={{ fontWeight: 700, marginBottom: '0.35rem' }}>Offline / Error</div>
+            <div style={{ opacity: 0.9, marginBottom: '0.45rem' }}>{error}</div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+              Troubleshooting: verify API on `http://localhost:8000/health`, ensure token is valid, and confirm SSE is connected.
+            </div>
+          </div>
+        ) : loading ? (
+          <div style={{ padding: '1rem', opacity: 0.8, textAlign: 'center' }}>
+            Loading events...
+          </div>
+        ) : events.length === 0 ? (
           <div style={{ padding: '1rem', opacity: 0.6, textAlign: 'center' }}>
             No events yet
           </div>

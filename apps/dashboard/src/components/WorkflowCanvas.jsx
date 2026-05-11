@@ -154,18 +154,6 @@ export default function WorkflowCanvas() {
   }, [layer?.visible, loadWorkflow])
 
   useEffect(() => {
-    if (!layer?.visible || !taskId) {
-      return
-    }
-
-    const interval = window.setInterval(() => {
-      loadWorkflow()
-    }, 10000)
-
-    return () => window.clearInterval(interval)
-  }, [layer?.visible, taskId, loadWorkflow])
-
-  useEffect(() => {
     const onSSE = (event) => {
       const eventTaskId = event?.detail?.data?.task_id
       if (taskId && eventTaskId === taskId) {

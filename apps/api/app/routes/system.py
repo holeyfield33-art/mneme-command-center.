@@ -261,6 +261,18 @@ def update_settings(
     for k, v in updates.items():
         if any(ch in v for ch in ("\n", "\r", "\x00")):
             raise HTTPException(status_code=400, detail=f"Invalid control characters in {k}")
+
+    if "VAULT_AUTO_LOCK_SECONDS" in updates:
+        try:
+            auto_lock_seconds = int(updates["VAULT_AUTO_LOCK_SECONDS"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="VAULT_AUTO_LOCK_SECONDS must be an integer") from exc
+
+        if auto_lock_seconds <= 0:
+            raise HTTPException(status_code=400, detail="VAULT_AUTO_LOCK_SECONDS must be positive")
+        if auto_lock_seconds > 900:
+            raise HTTPException(status_code=400, detail="VAULT_AUTO_LOCK_SECONDS cannot exceed 900 seconds (15 minutes)")
+
     existing.update(updates)
 
     # Write back

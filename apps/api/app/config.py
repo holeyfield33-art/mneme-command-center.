@@ -42,7 +42,7 @@ class Settings:
     notifications_enabled: bool = os.getenv("NOTIFICATIONS_ENABLED", "false").lower() == "true"
 
     # ── Phase 0 security controls ───────────────────────────────────────────
-    vault_auto_lock_seconds: int = int(os.getenv("VAULT_AUTO_LOCK_SECONDS", "1800"))
+    vault_auto_lock_seconds: int = int(os.getenv("VAULT_AUTO_LOCK_SECONDS", "900"))
     reauth_window_seconds: int = int(os.getenv("REAUTH_WINDOW_SECONDS", "300"))
     require_reauth_for_remote_push: bool = os.getenv("REQUIRE_REAUTH_FOR_REMOTE_PUSH", "true").lower() == "true"
     agent_memory_limit_mb: int = int(os.getenv("AGENT_MEMORY_LIMIT_MB", "512"))

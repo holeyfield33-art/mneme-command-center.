@@ -57,11 +57,9 @@ export default function ApprovalsAuditTimeline() {
     }
 
     window.addEventListener('mneme:sse', onSSE)
-    const intervalId = window.setInterval(loadEvents, 15000)
 
     return () => {
       window.removeEventListener('mneme:sse', onSSE)
-      window.clearInterval(intervalId)
     }
   }, [loadEvents])
 

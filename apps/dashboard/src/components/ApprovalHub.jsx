@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { approvals } from '../api'
 
 /**
@@ -20,35 +20,41 @@ export default function ApprovalHub({ onApprovalResolved = () => {} }) {
   const [modifyMode, setModifyMode] = useState(false)
   const [modifyText, setModifyText] = useState('')
 
-  // Poll for pending approvals
-  useEffect(() => {
-    const loadApprovals = async () => {
-      try {
-        const res = await approvals.list('pending')
-        if (res.data && res.data.length > 0) {
-          // Sort by created_at (oldest first) and priority
-          const sorted = res.data.sort((a, b) => {
-            // High risk first
-            const riskOrder = { high: 0, medium: 1, low: 2 }
-            const riskA = riskOrder[a.risk_level] ?? 999
-            const riskB = riskOrder[b.risk_level] ?? 999
-            if (riskA !== riskB) return riskA - riskB
-            // Then by creation time
-            return new Date(a.created_at) - new Date(b.created_at)
-          })
-          setCurrentApproval(sorted[0])
-        } else {
-          setCurrentApproval(null)
-        }
-      } catch (err) {
-        console.error('Failed to load approvals:', err)
+  const loadApprovals = useCallback(async () => {
+    try {
+      const res = await approvals.list('pending')
+      if (res.data && res.data.length > 0) {
+        // Sort by created_at (oldest first) and priority
+        const sorted = res.data.sort((a, b) => {
+          // High risk first
+          const riskOrder = { high: 0, medium: 1, low: 2 }
+          const riskA = riskOrder[a.risk_level] ?? 999
+          const riskB = riskOrder[b.risk_level] ?? 999
+          if (riskA !== riskB) return riskA - riskB
+          // Then by creation time
+          return new Date(a.created_at) - new Date(b.created_at)
+        })
+        setCurrentApproval(sorted[0])
+      } else {
+        setCurrentApproval(null)
       }
+    } catch (err) {
+      console.error('Failed to load approvals:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadApprovals()
+  }, [loadApprovals])
+
+  useEffect(() => {
+    const onSSE = () => {
+      loadApprovals()
     }
 
-    loadApprovals()
-    const interval = setInterval(loadApprovals, 3000) // Poll every 3 seconds
-    return () => clearInterval(interval)
-  }, [])
+    window.addEventListener('mneme:sse', onSSE)
+    return () => window.removeEventListener('mneme:sse', onSSE)
+  }, [loadApprovals])
 
   const handleApprove = async () => {
     if (!currentApproval) return
