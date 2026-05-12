@@ -1,15 +1,19 @@
 import logging
+import uuid
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 from sqlalchemy import inspect, text
+from sqlalchemy.orm import Session
 
-from .database import engine, Base
-from .models import Project, Task, Approval, Log, Worker, SystemState, AuditLog
+from .database import engine, Base, get_db
+from .models import Project, Task, Approval, Log, Worker, SystemState, AuditLog, User
 from .events import manager
 from .routes import auth, projects, tasks, approvals, worker, system, vault, audit, orchestration, skills
+from .utils import hash_password
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +74,37 @@ def ensure_schema_compatibility() -> None:
             )
 
 
+def seed_admin_user() -> None:
+    """Create admin user on startup if it doesn't exist.
+    
+    Uses the MNEME_ADMIN_PASSWORD from settings to initialize the admin user.
+    This ensures the system always has an admin account available at startup.
+    """
+    db = next(get_db())
+    try:
+        # Check if admin user already exists
+        admin_user = db.query(User).filter(User.username == "admin").first()
+        if admin_user:
+            logger.info("Admin user already exists, skipping seed.")
+            return
+        
+        # Create admin user with password from environment
+        admin_user = User(
+            id=str(uuid.uuid4()),
+            username="admin",
+            password_hash=hash_password(settings.admin_password),
+            is_admin=True
+        )
+        db.add(admin_user)
+        db.commit()
+        logger.info("Admin user created successfully on startup.")
+    except Exception as e:
+        logger.error(f"Failed to seed admin user: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 class BroadcastRequest(BaseModel):
     event_type: str
     data: dict
@@ -77,6 +112,7 @@ class BroadcastRequest(BaseModel):
 # Create tables
 Base.metadata.create_all(bind=engine)
 ensure_schema_compatibility()
+seed_admin_user()
 
 # Create FastAPI app
 app = FastAPI(

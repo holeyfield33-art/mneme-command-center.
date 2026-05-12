@@ -1,4 +1,6 @@
 import uuid
+import hashlib
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import jwt
@@ -8,6 +10,29 @@ from sqlalchemy.orm import Session
 
 from .models import Project, Task, Approval, Log, Worker, SystemState
 from .config import settings
+
+
+def hash_password(password: str) -> str:
+    """Hash a password using SHA256 with a salt.
+    
+    Format: salt:hash for easy storage and verification.
+    """
+    salt = os.urandom(32).hex()
+    pwd_hash = hashlib.sha256((salt + password).encode()).hexdigest()
+    return f"{salt}:{pwd_hash}"
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plain password against its hash.
+    
+    Expects format: salt:hash
+    """
+    try:
+        salt, stored_hash = hashed_password.split(":", 1)
+        pwd_hash = hashlib.sha256((salt + plain_password).encode()).hexdigest()
+        return pwd_hash == stored_hash
+    except (ValueError, AttributeError):
+        return False
 
 
 class Token(BaseModel):
