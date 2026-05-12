@@ -83,7 +83,8 @@ jobs:
 
       - name: Start API server
         env:
-          MNEME_ADMIN_PASSWORD: admin
+          MNEME_ADMIN_PASSWORD: ci-admin-password-2026
+          MNEME_SECRET_KEY: ci_secret_key_2026_32_chars_minimum
           MNEME_API_HOST: 127.0.0.1
           MNEME_API_PORT: "8000"
         run: |
@@ -106,7 +107,8 @@ jobs:
         env:
           MNEME_RUN_LIVE_TESTS: "1"
           MNEME_RUN_WORKER_TESTS: "1"
-          MNEME_ADMIN_PASSWORD: admin
+          MNEME_ADMIN_PASSWORD: ci-admin-password-2026
+          MNEME_SECRET_KEY: ci_secret_key_2026_32_chars_minimum
           MNEME_API_URL: http://127.0.0.1:8000
         run: |
           pytest -v tests/test_integration.py
@@ -162,7 +164,8 @@ jobs:
 
       - name: Start API server
         env:
-          MNEME_ADMIN_PASSWORD: admin
+          MNEME_ADMIN_PASSWORD: ci-admin-password-2026
+          MNEME_SECRET_KEY: ci_secret_key_2026_32_chars_minimum
           MNEME_API_HOST: 127.0.0.1
           MNEME_API_PORT: "8000"
         run: |
