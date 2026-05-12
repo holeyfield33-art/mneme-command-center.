@@ -59,6 +59,8 @@ export default function useSSE() {
         'phase_started',
         'phase_completed',
         'phase_failed',
+        'worker_status_changed',
+        'worker_process_status_changed',
       ]
 
       eventTypes.forEach((eventType) => {

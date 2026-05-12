@@ -79,6 +79,15 @@ def worker_heartbeat(
     
     db.commit()
     db.refresh(worker)
+    broadcast_now(
+        "worker_status_changed",
+        {
+            "worker_id": worker.worker_id,
+            "hostname": worker.hostname,
+            "status": worker.status.value,
+            "last_seen": worker.last_seen.isoformat() if worker.last_seen else None,
+        },
+    )
     
     return {
         "status": "ok",
@@ -127,6 +136,11 @@ def launch_worker(
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Failed to start worker: {exc}")
 
+    broadcast_now(
+        "worker_process_status_changed",
+        {"running": True, "pid": _worker_process.pid},
+    )
+
     return {"status": "started", "pid": _worker_process.pid}
 
 
@@ -149,6 +163,10 @@ def stop_worker(
 
     pid = _worker_process.pid
     _worker_process = None
+    broadcast_now(
+        "worker_process_status_changed",
+        {"running": False, "pid": pid},
+    )
     return {"status": "stopped", "pid": pid}
 
 

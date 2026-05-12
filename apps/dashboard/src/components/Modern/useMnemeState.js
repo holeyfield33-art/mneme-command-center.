@@ -37,7 +37,9 @@ export function useMnemeState() {
           projects: projectsRes.data || [],
           tasks: tasksRes.data || [],
           approvals: approvalsRes.data || [],
-          workers: workersRes.data?.workers || [],
+          workers: Array.isArray(workersRes.data)
+            ? workersRes.data
+            : (workersRes.data?.workers || []),
           emergencyStop: statusRes.data?.emergency_stop || false,
         }))
       } catch (err) {
@@ -96,6 +98,16 @@ export function useMnemeState() {
               t.id === data.task_id ? { ...t, status: data.phase_status } : t
             ),
           }
+
+        case 'worker_status_changed': {
+          const idx = prev.workers.findIndex(w => w.worker_id === data.worker_id)
+          if (idx === -1) {
+            return { ...prev, workers: [...prev.workers, data] }
+          }
+          const workers = [...prev.workers]
+          workers[idx] = { ...workers[idx], ...data }
+          return { ...prev, workers }
+        }
         
         default:
           return prev
