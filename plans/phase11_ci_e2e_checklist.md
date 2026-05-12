@@ -22,4 +22,4 @@ This checklist tracks phase 11 execution focused on CI reliability and automated
 - [x] Workflow file committed under `.github/workflows/ci.yml`.
 - [x] Local baseline tests passing.
 - [x] Local live integration tests passing.
-- [ ] CI run green on GitHub after push.
+- [x] CI run green on GitHub after push. Run #15 (commit 482c795) — 4/4 jobs: frontend-build, backend-tests, live-api-integration, ui-smoke all ✅ (2026-05-12).
