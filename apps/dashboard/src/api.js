@@ -9,6 +9,9 @@ const apiClient = axios.create({
   baseURL: API_URL
 })
 
+// Backward-compatible alias used by modern state hooks.
+export const api = apiClient
+
 // Add token to requests
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
