@@ -161,6 +161,8 @@ npm install
 npm run dev
 ```
 
+When the dashboard is opened through a Codespaces forwarded `*.github.dev` URL, it now uses the Vite dev server proxy automatically for API calls, so login and task fetches reach the workspace API without needing a localhost API URL in the browser.
+
 ### 5. Start worker
 
 ```bash

@@ -1,6 +1,9 @@
 import axios from 'axios'
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim() || ''
+const isForwardedGithubDevHost = typeof window !== 'undefined' && window.location.hostname.endsWith('.github.dev')
+
+export const API_URL = isForwardedGithubDevHost ? '' : (configuredApiUrl || 'http://localhost:8000')
 
 const apiClient = axios.create({
   baseURL: API_URL
