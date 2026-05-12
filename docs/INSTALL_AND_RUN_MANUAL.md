@@ -30,6 +30,43 @@ OLLAMA_BASE_URL=http://ollama:11434
 OLLAMA_MODEL=llama3.1
 ```
 
+Optional runtime controls:
+
+```env
+AGENT_SANDBOX_MODE=docker
+AGENT_BUDGET_USD=10
+```
+
+- Use `AGENT_SANDBOX_MODE=docker` for hardened execution.
+- Use `AGENT_SANDBOX_MODE=process` only on a temporary unconstrained feature branch.
+
+## 2.5 Create an unconstrained feature branch (optional)
+
+There is no built-in permanent unconstrained branch. Create one only when you need a developer-only relaxed runtime:
+
+```bash
+cd /workspaces/mneme-command-center
+git checkout main
+git pull origin main
+git checkout -b feature/unconstrained-$(date +%Y%m%d)-<topic>
+```
+
+In `.env` for this branch only:
+
+```env
+AGENT_SANDBOX_MODE=process
+AGENT_BUDGET_USD=0
+```
+
+When done, switch back to hardened defaults:
+
+```bash
+git checkout main
+# restore env values
+```
+
+Detailed operator guide: [docs/UNCONSTRAINED_BRANCH_OPERATIONS.md](docs/UNCONSTRAINED_BRANCH_OPERATIONS.md)
+
 ## 3. Install backend
 
 ```bash

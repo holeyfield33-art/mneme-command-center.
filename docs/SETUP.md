@@ -6,13 +6,14 @@
 2. [Backend Setup](#backend-setup)
 3. [Dashboard Setup](#dashboard-setup)
 4. [Worker Setup](#worker-setup)
-5. [Ollama (Local Model) Setup](#ollama-local-model-setup)
-6. [Running Tests](#running-tests)
-7. [Usage Guide](#usage-guide)
-8. [Dashboard Features](#dashboard-features)
-9. [API Reference](#api-reference)
-10. [Database Schema](#database-schema)
-11. [Troubleshooting](#troubleshooting)
+5. [Unconstrained Branch Mode](#unconstrained-branch-mode)
+6. [Ollama (Local Model) Setup](#ollama-local-model-setup)
+7. [Running Tests](#running-tests)
+8. [Usage Guide](#usage-guide)
+9. [Dashboard Features](#dashboard-features)
+10. [API Reference](#api-reference)
+11. [Database Schema](#database-schema)
+12. [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 
@@ -203,6 +204,35 @@ Output:
 [2024-01-15T10:30:45.123456] Heartbeat sent
 [INFO] Found 0 queued tasks
 ```
+
+## Unconstrained Branch Mode
+
+Mneme does not ship with a permanent unconstrained branch. Unconstrained mode is an operator-created temporary feature branch with lower runtime isolation.
+
+Create branch:
+
+```bash
+cd /workspaces/mneme-command-center.
+git checkout main
+git pull origin main
+git checkout -b feature/unconstrained-$(date +%Y%m%d)-<topic>
+```
+
+Use these `.env` values on that branch only:
+
+```env
+AGENT_SANDBOX_MODE=process
+AGENT_BUDGET_USD=0
+```
+
+Return to hardened mode after testing:
+
+```env
+AGENT_SANDBOX_MODE=docker
+AGENT_BUDGET_USD=10
+```
+
+Full operating playbook: [docs/UNCONSTRAINED_BRANCH_OPERATIONS.md](docs/UNCONSTRAINED_BRANCH_OPERATIONS.md)
 
 ## Ollama (Local Model) Setup
 

@@ -137,6 +137,31 @@ Set at minimum:
 - `AGENT_BUDGET_USD` (recommended)
 - `AGENT_SANDBOX_MODE` (`process` or `docker`)
 
+### Branch Operating Modes (Hardened vs Unconstrained)
+
+- Hardened mode (recommended): use `AGENT_SANDBOX_MODE=docker`.
+- Unconstrained mode (developer-only): use `AGENT_SANDBOX_MODE=process`.
+
+There is no permanent branch named unconstrained in this repository. An unconstrained branch is an operator-created, temporary feature branch used for local experimentation with lower runtime isolation.
+
+Suggested workflow:
+
+```bash
+cd /workspaces/mneme-command-center.
+git checkout main
+git pull origin main
+git checkout -b feature/unconstrained-$(date +%Y%m%d)-<topic>
+```
+
+Then set in `.env`:
+
+```env
+AGENT_SANDBOX_MODE=process
+AGENT_BUDGET_USD=0
+```
+
+For operating instructions and rollback steps, see [docs/UNCONSTRAINED_BRANCH_OPERATIONS.md](docs/UNCONSTRAINED_BRANCH_OPERATIONS.md).
+
 For the local model path, use:
 
 ```env
@@ -227,3 +252,4 @@ Recommended branch protection for `main`:
 
 - [docs/SETUP.md](docs/SETUP.md)
 - [docs/INSTALL_AND_RUN_MANUAL.md](docs/INSTALL_AND_RUN_MANUAL.md)
+- [docs/UNCONSTRAINED_BRANCH_OPERATIONS.md](docs/UNCONSTRAINED_BRANCH_OPERATIONS.md)
