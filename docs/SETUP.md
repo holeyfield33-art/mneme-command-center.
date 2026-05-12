@@ -309,7 +309,7 @@ All new tasks for that project will now be routed to your local Ollama instance.
 ## Running Tests
 
 ```bash
-/home/codespace/.python/current/bin/python -m pytest -v
+PYTHONPATH=. /home/codespace/.python/current/bin/python -m pytest -v
 ```
 
 Default test runs include local non-live tests only.
@@ -317,13 +317,13 @@ Default test runs include local non-live tests only.
 To run live API integration tests against a running backend:
 
 ```bash
-MNEME_RUN_LIVE_TESTS=1 /home/codespace/.python/current/bin/python -m pytest -v
+PYTHONPATH=. MNEME_RUN_LIVE_TESTS=1 /home/codespace/.python/current/bin/python -m pytest -v
 ```
 
 To include worker-dependent live checks as well:
 
 ```bash
-MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /home/codespace/.python/current/bin/python -m pytest -v
+PYTHONPATH=. MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /home/codespace/.python/current/bin/python -m pytest -v
 ```
 
 After pushing changes, monitor GitHub CI:

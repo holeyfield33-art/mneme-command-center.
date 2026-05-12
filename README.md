@@ -217,6 +217,12 @@ cd /workspaces/mneme-command-center.
 cd apps/dashboard && npm run build
 ```
 
+If tests are run from repo root, ensure worker imports resolve:
+
+```bash
+PYTHONPATH=. /workspaces/mneme-command-center./.venv/bin/python -m pytest -q
+```
+
 ### Watch GitHub CI workflows
 
 After push, monitor workflow progress with:

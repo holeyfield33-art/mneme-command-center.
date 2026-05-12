@@ -13,6 +13,8 @@ jobs:
   backend-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      PYTHONPATH: .
 
     steps:
       - name: Checkout
@@ -61,6 +63,8 @@ jobs:
     timeout-minutes: 20
     needs:
       - backend-tests
+    env:
+      PYTHONPATH: .
 
     steps:
       - name: Checkout

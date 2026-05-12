@@ -146,7 +146,7 @@ curl -I http://localhost:5173
 
 # Optional: run tests
 cd /path/to/mneme-command-center
-/home/codespace/.python/current/bin/python -m pytest -v
+PYTHONPATH=. /home/codespace/.python/current/bin/python -m pytest -v
 ```
 
 ## 9. Access dashboard
