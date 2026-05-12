@@ -137,7 +137,15 @@ export const approvals = {
   modify: (id, reasonCode, details) => withReauthChallenge(() => apiClient.post(`/approvals/${id}/modify`, {
     reason_code: reasonCode,
     details,
-  }))
+  })),
+  // Adapter used by ApprovalHub — maps the legacy (id, action, payload) signature to the
+  // correct approve/reject/modify API methods.
+  respond: (id, action, payload = {}) => {
+    if (action === 'approved') return approvals.approve(id)
+    if (action === 'rejected') return approvals.reject(id)
+    if (action === 'modified') return approvals.modify(id, 'user_modification', payload.modification_request || '')
+    return Promise.reject(new Error(`Unknown approval action: ${action}`))
+  },
 }
 
 export const worker = {

@@ -1,4 +1,20 @@
 import React from 'react'
+
+function ErrorToast({ message, onDismiss, accent }) {
+  return (
+    <div style={{
+      position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+      background: '#1e1010', border: `1px solid ${accent}`, borderRadius: 8,
+      padding: '10px 18px', color: accent, fontSize: 13, zIndex: 9999,
+      display: 'flex', alignItems: 'center', gap: 12, maxWidth: 480,
+      boxShadow: '0 4px 24px rgba(0,0,0,.5)',
+    }}>
+      <span style={{ flex: 1 }}>{message}</span>
+      <button onClick={onDismiss} style={{ background: 'none', border: 'none', color: accent, cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>✕</button>
+    </div>
+  )
+}
+
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMnemeState } from './useMnemeState'
 import StatCard from './StatCard'
@@ -402,6 +418,9 @@ export default function ModernLayout({ layout = 'top', accent = 'amber', onLayou
         />
       )}
 
+      {status.error && (
+        <ErrorToast message={status.error} onDismiss={act.clearError} accent={DANGER} />
+      )}
       <style>{`@keyframes modPulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.35 } }`}</style>
     </div>
   )

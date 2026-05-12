@@ -326,6 +326,14 @@ To include worker-dependent live checks as well:
 MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /home/codespace/.python/current/bin/python -m pytest -v
 ```
 
+After pushing changes, monitor GitHub CI:
+
+```bash
+cd /workspaces/mneme-command-center.
+gh run list --workflow CI --limit 5
+gh run watch --exit-status
+```
+
 ## Usage Guide
 
 ### Complete Workflow
@@ -418,6 +426,11 @@ MNEME_RUN_LIVE_TESTS=1 MNEME_RUN_WORKER_TESTS=1 /home/codespace/.python/current/
 
 - **Real-time updates**: All pages listen for SSE events from the API and refresh automatically.
 - **Emergency Stop**: Red button stops the worker from picking up new tasks immediately.
+- **Auth persistence hardening**: stored token is validated at app boot; invalid token is cleared.
+- **Auth-aware stream lifecycle**: SSE disconnects on logout to prevent stale session events.
+- **Workers control page**: `/workers` now provides launch/stop controls and runtime status.
+- **Approval compatibility**: legacy and modern approval views share approve/reject/modify behavior.
+- **Error feedback**: mutation failures show dismissible toast notifications.
 
 ## API Reference
 

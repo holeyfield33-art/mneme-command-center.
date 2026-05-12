@@ -1,12 +1,14 @@
 import React from 'react'
 import { api } from '../../api'
 import useSSE from '../../useSSE'
+import { useAuth } from '../../context/AuthContext'
 
 /**
  * Custom hook to manage Mneme state from the API with real-time SSE updates
  */
 export function useMnemeState() {
-  const { isConnected, lastEvent } = useSSE()
+  const { isAuthenticated } = useAuth()
+  const { isConnected, lastEvent } = useSSE({ enabled: isAuthenticated })
   const [state, setState] = React.useState({
     projects: [],
     tasks: [],
@@ -145,18 +147,24 @@ export function useMnemeState() {
       }
     },
     approve: async (approvalId) => {
+      const snapshot = state.approvals
+      setState(s => ({ ...s, approvals: s.approvals.filter(a => a.id !== approvalId) }))
       try {
         await api.post(`/approvals/${approvalId}/approve`)
-        setState(s => ({ ...s, approvals: s.approvals.filter(a => a.id !== approvalId) }))
       } catch (err) {
+        setState(s => ({ ...s, approvals: snapshot }))
+        setError(err?.response?.data?.detail || err.message || 'Failed to approve')
         console.error('Failed to approve:', err)
       }
     },
     reject: async (approvalId, reason) => {
+      const snapshot = state.approvals
+      setState(s => ({ ...s, approvals: s.approvals.filter(a => a.id !== approvalId) }))
       try {
         await api.post(`/approvals/${approvalId}/reject`, { reason })
-        setState(s => ({ ...s, approvals: s.approvals.filter(a => a.id !== approvalId) }))
       } catch (err) {
+        setState(s => ({ ...s, approvals: snapshot }))
+        setError(err?.response?.data?.detail || err.message || 'Failed to reject')
         console.error('Failed to reject:', err)
       }
     },
@@ -169,6 +177,7 @@ export function useMnemeState() {
         console.error('Failed to toggle emergency stop:', err)
       }
     },
+    clearError: () => setError(null),
   }
 
   return [state, actions, { loading, error, sseConnected: isConnected }]

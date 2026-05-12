@@ -1,12 +1,25 @@
 import React, { createContext, useState, useContext, useEffect } from 'react'
-import { auth } from '../api'
+import { auth, api } from '../api'
 
 const AuthContext = createContext()
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => localStorage.getItem('token'))
-  const [isAuthenticated, setIsAuthenticated] = useState(!!token)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [reauth, setReauth] = useState({ required: false, onComplete: null })
+
+  // Validate persisted token on boot — clear it if the API rejects it.
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token')
+    if (!storedToken) return
+    api.get('/system/runtime-status').then(() => {
+      setIsAuthenticated(true)
+    }).catch(() => {
+      localStorage.removeItem('token')
+      setToken(null)
+      setIsAuthenticated(false)
+    })
+  }, [])
 
   const login = (newToken) => {
     setToken(newToken)

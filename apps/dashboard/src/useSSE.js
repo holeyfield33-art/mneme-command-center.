@@ -3,13 +3,21 @@ import { API_URL } from './api'
 
 const RECONNECT_DELAY_MS = 2000
 
-export default function useSSE() {
+export default function useSSE({ enabled = true } = {}) {
   const [isConnected, setIsConnected] = useState(false)
   const [lastEvent, setLastEvent] = useState(null)
   const sourceRef = useRef(null)
   const reconnectTimerRef = useRef(null)
 
   useEffect(() => {
+    if (!enabled) {
+      // Tear down any existing connection when disabled (e.g. on logout).
+      setIsConnected(false)
+      if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current)
+      if (sourceRef.current) { sourceRef.current.close(); sourceRef.current = null }
+      return
+    }
+
     let isUnmounted = false
 
     const connect = () => {

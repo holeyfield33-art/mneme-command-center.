@@ -110,13 +110,18 @@ Worker (Python)
 ## Key Features (Current)
 
 - Real-time dashboard updates through SSE
+- Auth persistence hardening with token validation on app boot
+- SSE lifecycle tied to auth session (stream teardown on logout)
 - Approval-centric execution model with explicit human gate
+- Approval action compatibility adapter for legacy approval surfaces
 - Multi-phase orchestration with checkpoints + rollback/resume
 - Per-task model routing and provider override
 - Task-level cost reporting + budget-based stop behavior
 - Docker sandbox mode for command execution path
 - Secret redaction before logging provider/API failures
 - Dark-mode compatible theme tokens and modernized component styling
+- Worker control page at `/workers` (status + launch/stop actions)
+- Mutation error toasts with user-visible failure feedback and dismissal
 
 ## Setup
 
@@ -210,6 +215,16 @@ docker compose up -d api worker ollama
 cd /workspaces/mneme-command-center.
 /workspaces/mneme-command-center./.venv/bin/python -m pytest -q
 cd apps/dashboard && npm run build
+```
+
+### Watch GitHub CI workflows
+
+After push, monitor workflow progress with:
+
+```bash
+cd /workspaces/mneme-command-center.
+gh run list --workflow CI --limit 5
+gh run watch --exit-status
 ```
 
 ### Full live E2E suite

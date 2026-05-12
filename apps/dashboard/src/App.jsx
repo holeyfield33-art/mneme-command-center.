@@ -12,6 +12,7 @@ import Approvals from './pages/Approvals'
 import Settings from './pages/Settings'
 import SetupWizard from './pages/SetupWizard'
 import Audit from './pages/Audit'
+import Workers from './pages/Workers'
 import GlobalErrorBoundary from './components/GlobalErrorBoundary'
 
 function RequireAuth({ children }) {
@@ -39,7 +40,7 @@ export default function App() {
               <Route path="/project/:projectId" element={<RequireAuth><ProjectDetail /></RequireAuth>} />
               <Route path="/task/:taskId" element={<RequireAuth><TaskDetail /></RequireAuth>} />
               <Route path="/approvals" element={<RequireAuth><Approvals /></RequireAuth>} />
-              <Route path="/workers" element={<RequireAuth><Home /></RequireAuth>} />
+              <Route path="/workers" element={<RequireAuth><Workers /></RequireAuth>} />
               <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
               <Route path="/setup" element={<RequireAuth><SetupWizard /></RequireAuth>} />
               <Route path="/audit" element={<RequireAuth><Audit /></RequireAuth>} />

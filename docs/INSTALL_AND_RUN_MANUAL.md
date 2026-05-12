@@ -156,6 +156,14 @@ cd /path/to/mneme-command-center
 
 Login password: `MNEME_ADMIN_PASSWORD` from `.env`.
 
+Operational notes from the latest reliability pass:
+
+- Persisted auth token is validated on app boot; invalid tokens are cleared automatically.
+- SSE stream is closed on logout to avoid stale session updates.
+- Worker controls are available at `/workers` (launch/stop + runtime status).
+- Approval actions support approve/reject/modify across both modern and legacy views.
+- Mutation failures surface as dismissible in-app error toasts.
+
 If you are using the Docker stack, bring up the full system with:
 
 ```bash
@@ -173,3 +181,17 @@ docker compose up -d api worker ollama
   - Confirm `apps/dashboard/.env.local` has `VITE_API_URL=http://localhost:8000`
 - Worker idle:
   - Confirm API is healthy and no emergency stop is active
+
+## 11. CI verification after push
+
+```bash
+cd /workspaces/mneme-command-center.
+gh run list --workflow CI --limit 5
+gh run watch --exit-status
+```
+
+If a run fails, inspect logs directly:
+
+```bash
+gh run view --log-failed
+```
