@@ -1,11 +1,11 @@
-export default function ModernPalette({ onClose, state, accent, surface, surface2, border, fg, fgDim, bg, fontMono }) {
+export default function ModernPalette({ onClose, onNavigate, onCreateTask, onEmergencyStop, state, accent, surface, surface2, border, fg, fgDim, bg, fontMono }) {
   const items = [
-    { glyph: '⏵', label: 'New task in mneme-command-center', kbd: '⏎' },
-    { glyph: '◐', label: `Approvals (${state.approvals ? state.approvals.length : 0})`, kbd: 'g a' },
-    { glyph: '◼', label: 'Engage emergency stop', kbd: '⌘ .' },
-    { glyph: '☰', label: 'Tasks', kbd: 'g t' },
-    { glyph: '▤', label: 'Open project · aurora-ledger', kbd: '' },
-    { glyph: '⌘', label: 'Settings · Runtime', kbd: '' },
+    { glyph: '⏵', label: 'New task', kbd: '⏎', action: () => onCreateTask?.() },
+    { glyph: '◐', label: `Approvals (${state.approvals ? state.approvals.length : 0})`, kbd: 'g a', action: () => onNavigate?.('/approvals') },
+    { glyph: '◼', label: 'Engage emergency stop', kbd: '⌘ .', action: () => onEmergencyStop?.() },
+    { glyph: '☰', label: 'Tasks', kbd: 'g t', action: () => onNavigate?.('/dashboard') },
+    { glyph: '▤', label: 'Projects', kbd: '', action: () => onNavigate?.('/projects') },
+    { glyph: '⌘', label: 'Settings · Runtime', kbd: '', action: () => onNavigate?.('/settings') },
   ]
   return (
     <div onClick={onClose} style={{
@@ -27,6 +27,9 @@ export default function ModernPalette({ onClose, state, accent, surface, surface
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '8px 12px', borderRadius: 6, cursor: 'pointer',
               background: i === 0 ? surface2 : 'transparent', color: fg,
+            }} onClick={() => {
+              it.action?.()
+              onClose?.()
             }}>
               <span style={{ width: 16, color: accent, fontFamily: fontMono }}>{it.glyph}</span>
               <span style={{ flex: 1 }}>{it.label}</span>

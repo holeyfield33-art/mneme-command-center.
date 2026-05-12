@@ -1,11 +1,11 @@
-export default function ModernSidebar({ accent, fg, fgDim, fgDimmer, surface, border, state, fontMono }) {
+export default function ModernSidebar({ accent, fg, fgDim, fgDimmer, surface, border, state, fontMono, currentPath = '/', onNavigate }) {
   const items = [
-    { k: 'home', label: 'Overview', icon: '◆', active: true },
-    { k: 'tasks', label: 'Tasks', icon: '☰', count: state.tasks ? state.tasks.length : 0 },
-    { k: 'approvals', label: 'Approvals', icon: '◐', count: state.approvals ? state.approvals.length : 0, alert: state.approvals && state.approvals.length > 0 },
-    { k: 'projects', label: 'Projects', icon: '▤', count: state.projects ? state.projects.length : 0 },
-    { k: 'workers', label: 'Workers', icon: '◇', count: state.workers ? state.workers.length : 0 },
-    { k: 'logs', label: 'Stream', icon: '≡' },
+    { k: 'overview', label: 'Overview', icon: '◆', path: '/overview' },
+    { k: 'tasks', label: 'Tasks', icon: '☰', path: '/dashboard', count: state.tasks ? state.tasks.length : 0 },
+    { k: 'approvals', label: 'Approvals', icon: '◐', path: '/approvals', count: state.approvals ? state.approvals.length : 0, alert: state.approvals && state.approvals.length > 0 },
+    { k: 'projects', label: 'Projects', icon: '▤', path: '/projects', count: state.projects ? state.projects.length : 0 },
+    { k: 'workers', label: 'Workers', icon: '◇', path: '/workers', count: state.workers ? state.workers.length : 0 },
+    { k: 'audit', label: 'Audit', icon: '◎', path: '/audit' },
   ]
   return (
     <aside style={{
@@ -23,15 +23,17 @@ export default function ModernSidebar({ accent, fg, fgDim, fgDimmer, surface, bo
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {items.map(it => (
+        {items.map(it => {
+          const active = currentPath === it.path
+          return (
           <div key={it.k} style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '6px 10px', borderRadius: 5, cursor: 'pointer',
-            background: it.active ? '#1a1a1f' : 'transparent',
-            color: it.active ? fg : fgDim,
+            background: active ? '#1a1a1f' : 'transparent',
+            color: active ? fg : fgDim,
             fontSize: 13,
-          }}>
-            <span style={{ width: 14, fontFamily: fontMono, color: it.active ? accent : fgDim }}>{it.icon}</span>
+          }} onClick={() => onNavigate?.(it.path)}>
+            <span style={{ width: 14, fontFamily: fontMono, color: active ? accent : fgDim }}>{it.icon}</span>
             <span style={{ flex: 1 }}>{it.label}</span>
             {it.count != null && (
               <span style={{
@@ -42,7 +44,8 @@ export default function ModernSidebar({ accent, fg, fgDim, fgDimmer, surface, bo
               }}>{it.count}</span>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
 
       <div style={{

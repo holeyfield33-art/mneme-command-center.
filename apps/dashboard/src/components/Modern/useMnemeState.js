@@ -70,7 +70,11 @@ export function useMnemeState() {
         case 'task_status_changed':
           return {
             ...prev,
-            tasks: prev.tasks.map(t => t.id === data.id ? data : t),
+            tasks: prev.tasks.map(t =>
+              t.id === (data.id || data.task_id)
+                ? { ...t, ...data, id: t.id }
+                : t
+            ),
           }
         
         case 'task_log_added':
@@ -80,12 +84,16 @@ export function useMnemeState() {
           }
         
         case 'approval_created':
-          return { ...prev, approvals: [...prev.approvals, data] }
+          return { ...prev, approvals: [...prev.approvals, { ...data, id: data.id || data.approval_id }] }
         
         case 'approval_updated':
           return {
             ...prev,
-            approvals: prev.approvals.map(a => a.id === data.id ? data : a),
+            approvals: prev.approvals.map(a =>
+              a.id === (data.id || data.approval_id)
+                ? { ...a, ...data, id: a.id }
+                : a
+            ),
           }
         
         case 'phase_started':
@@ -119,9 +127,20 @@ export function useMnemeState() {
     selectTask: (taskId) => setState(s => ({ ...s, selectedTaskId: taskId })),
     createTask: async (payload) => {
       try {
-        const res = await api.post('/tasks', payload)
+        const selectedProject = state.projects.find(p => p.name === payload.project || p.id === payload.project_id)
+        const requestBody = {
+          project_id: payload.project_id || selectedProject?.id,
+          objective: payload.objective,
+          mode: payload.mode || 'interactive',
+          risk_level: payload.risk_level || 'medium',
+        }
+        if (!requestBody.project_id) {
+          throw new Error('Select a valid project before dispatching a task.')
+        }
+        const res = await api.post('/tasks', requestBody)
         setState(s => ({ ...s, tasks: [...s.tasks, res.data || { id: Math.random(), ...payload }] }))
       } catch (err) {
+        setError(err?.response?.data?.detail || err.message || 'Failed to create task')
         console.error('Failed to create task:', err)
       }
     },

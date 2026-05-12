@@ -154,5 +154,6 @@ export const system = {
   getRuntimeStatus: () => apiClient.get('/system/runtime-status'),
   getVaultStatus: () => apiClient.get('/api/v1/vault/status'),
   getAuditEvents: (limit = 100) => apiClient.get('/api/v1/audit/events', { params: { limit } }),
+  getAuditSummary: () => apiClient.get('/api/v1/audit/summary'),
   updateSettings: (data) => apiClient.put('/system/settings', data),
 }

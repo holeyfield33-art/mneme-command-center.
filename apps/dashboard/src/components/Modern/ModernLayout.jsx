@@ -1,4 +1,5 @@
 import React from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useMnemeState } from './useMnemeState'
 import StatCard from './StatCard'
 import ModernTaskRow from './ModernTaskRow'
@@ -31,9 +32,11 @@ function fmtAgo(seconds) {
 }
 
 export default function ModernLayout({ layout = 'top', accent = 'amber', onLayoutChange, onAccentChange, onLogout }) {
+  const navigate = useNavigate()
+  const location = useLocation()
   const [s, act, status] = useMnemeState()
   const [taskFilter, setTaskFilter] = React.useState('active')
-  const [composer, setComposer] = React.useState({ project: s.projects[0]?.name || '', objective: '', template: null })
+  const [composer, setComposer] = React.useState({ project: '', objective: '', template: null })
   const [paletteOpen, setPaletteOpen] = React.useState(false)
 
   // Color palette
@@ -73,6 +76,12 @@ export default function ModernLayout({ layout = 'top', accent = 'amber', onLayou
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  React.useEffect(() => {
+    if (!composer.project && s.projects.length > 0) {
+      setComposer(c => ({ ...c, project: s.projects[0].id }))
+    }
+  }, [composer.project, s.projects])
+
   const STATUS_STYLE = {
     executing: { color: ACCENT, dot: ACCENT, bg: ACCENT_SOFT, label: 'Executing' },
     planning: { color: INFO, dot: INFO, bg: 'rgba(96,165,250,.10)', label: 'Planning' },
@@ -82,6 +91,16 @@ export default function ModernLayout({ layout = 'top', accent = 'amber', onLayou
     failed: { color: DANGER, dot: DANGER, bg: 'rgba(248,113,113,.10)', label: 'Failed' },
   }
 
+  const navItems = [
+    { label: 'Overview', path: '/overview' },
+    { label: 'Tasks', path: '/dashboard' },
+    { label: 'Approvals', path: '/approvals' },
+    { label: 'Projects', path: '/projects' },
+    { label: 'Workers', path: '/workers' },
+    { label: 'Settings', path: '/settings' },
+    { label: 'Audit', path: '/audit' },
+  ]
+
   return (
     <div style={{
       width: '100%', height: '100vh', background: BG, color: FG,
@@ -89,7 +108,18 @@ export default function ModernLayout({ layout = 'top', accent = 'amber', onLayou
       position: 'relative', display: 'flex',
     }}>
       {layout === 'sidebar' && (
-        <ModernSidebar accent={ACCENT} fg={FG} fgDim={FG_DIM} fgDimmer={FG_DIMMER} surface={SURFACE} border={BORDER} state={s} fontMono={FONT_MONO} />
+        <ModernSidebar
+          accent={ACCENT}
+          fg={FG}
+          fgDim={FG_DIM}
+          fgDimmer={FG_DIMMER}
+          surface={SURFACE}
+          border={BORDER}
+          state={s}
+          fontMono={FONT_MONO}
+          currentPath={location.pathname}
+          onNavigate={navigate}
+        />
       )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -112,19 +142,21 @@ export default function ModernLayout({ layout = 'top', accent = 'amber', onLayou
             )}
             {layout !== 'sidebar' && (
               <nav style={{ display: 'flex', gap: 4 }}>
-                {['Overview', 'Tasks', 'Approvals', 'Projects', 'Workers', 'Settings'].map((it, i) => (
-                  <button key={it} style={{
-                    background: i === 0 ? SURFACE_2 : 'transparent',
-                    color: i === 0 ? FG : FG_DIM,
+                {navItems.map((it) => {
+                  const active = location.pathname === it.path
+                  return (
+                  <button key={it.label} onClick={() => navigate(it.path)} style={{
+                    background: active ? SURFACE_2 : 'transparent',
+                    color: active ? FG : FG_DIM,
                     border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13,
                     fontFamily: FONT_SANS, cursor: 'pointer',
                   }}>
-                    {it}
-                    {it === 'Approvals' && s.approvals.length > 0 ? (
+                    {it.label}
+                    {it.label === 'Approvals' && s.approvals.length > 0 ? (
                       <span style={{ marginLeft: 6, color: WARN, fontFamily: FONT_MONO, fontSize: 11 }}>{s.approvals.length}</span>
                     ) : null}
                   </button>
-                ))}
+                )})}
               </nav>
             )}
           </div>
@@ -203,7 +235,7 @@ export default function ModernLayout({ layout = 'top', accent = 'amber', onLayou
                 <ModernTaskRow
                   key={t.id} task={t}
                   selected={t.id === s.selectedTaskId}
-                  onClick={() => act.selectTask(t.id)}
+                  onClick={() => { act.selectTask(t.id); navigate(`/task/${t.id}`) }}
                   STATUS_STYLE={STATUS_STYLE}
                   fg={FG} fgDim={FG_DIM} border={BORDER_SOFT}
                   fontMono={FONT_MONO}
@@ -282,7 +314,7 @@ export default function ModernLayout({ layout = 'top', accent = 'amber', onLayou
                     background: SURFACE_2, color: FG, border: `1px solid ${BORDER_SOFT}`,
                     fontFamily: FONT_MONO, fontSize: 12, padding: '4px 8px', borderRadius: 5,
                   }}>
-                  {s.projects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                  {s.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <textarea
@@ -297,7 +329,7 @@ export default function ModernLayout({ layout = 'top', accent = 'amber', onLayou
               />
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                 <button
-                  onClick={() => { act.createTask({ project: composer.project, objective: composer.objective }); setComposer({ project: composer.project, objective: '', template: null }); }}
+                  onClick={() => { act.createTask({ project_id: composer.project, objective: composer.objective }); setComposer({ project: composer.project, objective: '', template: null }); }}
                   disabled={!composer.objective.trim()}
                   style={{
                     padding: '6px 14px', borderRadius: 6,
@@ -324,11 +356,15 @@ export default function ModernLayout({ layout = 'top', accent = 'amber', onLayou
               <span style={{ color: FG_DIM }}>· tail 18 / {s.logs.length}</span>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              {['all', 't-104', 't-103'].map((t, i) => (
+              {['all', 'tasks', 'approvals', 'audit'].map((t, i) => (
                 <span key={t} style={{
                   padding: '2px 7px', borderRadius: 4, fontSize: 11, fontFamily: FONT_MONO,
                   background: i === 0 ? SURFACE_2 : 'transparent', color: i === 0 ? FG : FG_DIM,
                   border: `1px solid ${i === 0 ? BORDER : 'transparent'}`, cursor: 'pointer',
+                }} onClick={() => {
+                  if (t === 'tasks') navigate('/dashboard')
+                  if (t === 'approvals') navigate('/approvals')
+                  if (t === 'audit') navigate('/audit')
                 }}>{t}</span>
               ))}
             </div>
@@ -353,6 +389,13 @@ export default function ModernLayout({ layout = 'top', accent = 'amber', onLayou
       {paletteOpen && (
         <ModernPalette
           onClose={() => setPaletteOpen(false)}
+          onNavigate={navigate}
+          onCreateTask={() => {
+            setPaletteOpen(false)
+            const el = document.querySelector('textarea')
+            if (el) el.focus()
+          }}
+          onEmergencyStop={act.toggleEmergencyStop}
           state={s}
           accent={ACCENT} surface={SURFACE} surface2={SURFACE_2} border={BORDER}
           fg={FG} fgDim={FG_DIM} bg={BG} fontMono={FONT_MONO}
