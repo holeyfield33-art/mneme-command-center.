@@ -140,10 +140,10 @@ export default function ModernLayout({ layout = 'top', accent = 'amber', onLayou
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: FONT_MONO, fontSize: 11, color: FG_DIM }}>
               <span style={{
                 width: 6, height: 6, borderRadius: 999,
-                background: s.emergencyStop ? DANGER : SUCCESS,
-                boxShadow: s.emergencyStop ? `0 0 8px ${DANGER}` : `0 0 8px ${SUCCESS}`,
+                background: status.sseConnected ? SUCCESS : WARN,
+                boxShadow: status.sseConnected ? `0 0 8px ${SUCCESS}` : `0 0 8px ${WARN}`,
               }} />
-              {s.emergencyStop ? 'sse paused' : 'sse live'}
+              {status.sseConnected ? 'live' : 'reconnecting'}
             </div>
             <button onClick={act.toggleEmergencyStop} style={{
               display: 'flex', alignItems: 'center', gap: 6,
